@@ -2,6 +2,7 @@ import { put, list } from '@vercel/blob';
 
 const BLOB_NAME = 'wc2026-tirsdagsklubben.json';
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123';
+const BLOB_ACCESS = process.env.BLOB_ACCESS || 'public';
 const SIMPLE_REQUIRED_FIELDS = ['top1', 'top2', 'top3', 'top4', 'topscorer', 'golden_ball', 'most_yellow', 'most_goals_team'];
 const ADV_GROUP_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 const ADV_FUN_KEYS = ['topscorer', 'golden_ball', 'golden_glove', 'most_assist', 'most_goals_match', 'total_goals', 'most_yellow', 'most_red', 'own_goals', 'most_goals_team'];
@@ -73,7 +74,11 @@ async function writeBlob(data) {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     throw new Error('BLOB_READ_WRITE_TOKEN mangler i Vercel Environment Variables');
   }
+  if (!['public', 'private'].includes(BLOB_ACCESS)) {
+    throw new Error('BLOB_ACCESS skal vaere enten public eller private');
+  }
   await put(BLOB_NAME, JSON.stringify(data), {
+    access: BLOB_ACCESS,
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json'
