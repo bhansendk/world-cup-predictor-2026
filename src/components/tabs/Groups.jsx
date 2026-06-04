@@ -1,15 +1,6 @@
 import { GROUPS } from '../../data/wc2026.js';
 import { FlagSpan } from '../FormFields.jsx';
 
-function shuffle(arr) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 function GroupCard({ groupKey, group, gs, onPick }) {
   const ranks = [gs.p1 || null, gs.p2 || null, gs.p3 || null];
   const filled = ranks.filter(Boolean).length;
@@ -55,18 +46,9 @@ function GroupCard({ groupKey, group, gs, onPick }) {
   );
 }
 
-export default function GroupsTab({ S, updateGroup }) {
+export default function GroupsTab({ S, updateGroup, onRandomFillAll }) {
   const handlePick = (gKey, ranks) => {
     Object.entries(ranks).forEach(([field, val]) => updateGroup(gKey, field, val));
-  };
-
-  const randomFill = () => {
-    Object.entries(GROUPS).forEach(([gKey, group]) => {
-      const [p1, p2, p3] = shuffle(group.teams);
-      updateGroup(gKey, 'p1', p1 || null);
-      updateGroup(gKey, 'p2', p2 || null);
-      updateGroup(gKey, 'p3', p3 || null);
-    });
   };
 
   const clearAll = () => {
@@ -88,7 +70,7 @@ export default function GroupsTab({ S, updateGroup }) {
         <h2>🏟️ Grupperunde</h2>
         <p>Klik på et hold for at rangere dem 1., 2. og 3. i gruppen. 2 point for 3'er, 3 pt for 2'er, 4 pt for 1'er.</p>
         <div className="submit-row" style={{ marginTop: 12 }}>
-          <button className="btn-accent btn-sm" onClick={randomFill}>🎲 Udfyld alt tilfældigt</button>
+          <button className="btn-accent btn-sm" onClick={() => onRandomFillAll?.()}>🎲 Udfyld alt tilfældigt</button>
           <button className="btn-ghost btn-sm" onClick={clearAll}>🗑️ Nulstil alle gruppevalg</button>
         </div>
         {allFilled && <div className="success-banner">✅ Alle grupper er udfyldt! Gå videre til 3'erne.</div>}

@@ -5,6 +5,9 @@ import BracketTab from './tabs/Bracket.jsx';
 import FunTipsTab from './tabs/FunTips.jsx';
 import KonkurrenceTab from './tabs/Konkurrence.jsx';
 import ResultaterTab from './tabs/Resultater.jsx';
+import { COMBO } from '../data/combo.js';
+import { FUN_QUESTIONS, GROUPS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../data/wc2026.js';
+import { extractSimpleFromAdvanced, resolveSlot } from '../lib/scoring.js';
 
 const TABS = [
   { id: 'groups',    label: '🏟️ Grupper' },
@@ -21,6 +24,84 @@ export default function AdvancedMode(props) {
       serverData, onSubmit, adminUpdate, adminVerify, adminDelete, adminClearAll, loading,
           fetchData, onReset, setS, setFUN, setSIMPLE, myName, setMyName } = props;
 
+  const randomPick = (arr) => arr[Math.floor(Math.random() * arr.length)] || null;
+
+  const shuffle = (arr) => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  const fillAllRandomAdvanced = () => {
+    const groupEntries = Object.entries(GROUPS);
+    const g = {};
+
+    groupEntries.forEach(([key, group]) => {
+      const [p1, p2, p3] = shuffle(group.teams);
+      g[key] = { p1: p1 || null, p2: p2 || null, p3: p3 || null };
+    });
+
+    const third = shuffle(Object.keys(GROUPS)).slice(0, 8).sort();
+    const comboKey = third.join('');
+    const comboExists = !!COMBO[comboKey];
+    if (!comboExists) {
+      // Extremely unlikely fallback: keep trying until a valid combo appears.
+      for (let i = 0; i < 50; i += 1) {
+        const retry = shuffle(Object.keys(GROUPS)).slice(0, 8).sort();
+        if (COMBO[retry.join('')]) {
+          third.splice(0, third.length, ...retry);
+          break;
+        }
+      }
+    }
+
+    const pickWinner = (a, b) => {
+      const teams = [a, b].filter(Boolean);
+      return teams.length ? randomPick(teams) : null;
+    };
+
+    const r32 = {};
+    R32.forEach(m => {
+      const a = resolveSlot(m.a, g, third);
+      const b = resolveSlot(m.b, g, third);
+      r32[m.id] = pickWinner(a, b);
+    });
+
+    const r16 = {};
+    R16_PAIRS.forEach(([i, j], idx) => {
+      const w = pickWinner(r32[R32[i].id], r32[R32[j].id]);
+      r16[`r16_${idx}`] = w;
+    });
+
+    const qf = {};
+    QF_PAIRS.forEach(([i, j], idx) => {
+      qf[`qf_${idx}`] = pickWinner(r16[`r16_${i}`], r16[`r16_${j}`]);
+    });
+
+    const sf = {};
+    SF_PAIRS.forEach(([i, j], idx) => {
+      sf[`sf_${idx}`] = pickWinner(qf[`qf_${i}`], qf[`qf_${j}`]);
+    });
+
+    const final = { fin: pickWinner(sf.sf_0, sf.sf_1) };
+    const sfLoser0 = sf.sf_0 ? (qf.qf_0 === sf.sf_0 ? qf.qf_1 : qf.qf_0) : null;
+    const sfLoser1 = sf.sf_1 ? (qf.qf_2 === sf.sf_1 ? qf.qf_3 : qf.qf_2) : null;
+    const bronze = { bronze_w: pickWinner(sfLoser0, sfLoser1) };
+
+    const fun = {};
+    FUN_QUESTIONS.forEach(q => {
+      fun[q.id] = randomPick(q.options) || null;
+    });
+
+    const nextS = { g, third, r32, r16, qf, sf, final, bronze };
+    setS(nextS);
+    setFUN(fun);
+    setSIMPLE(prev => ({ ...prev, ...extractSimpleFromAdvanced(nextS, fun) }));
+  };
+
   return (
     <div className="mode-container">
       <div className="tab-bar">
@@ -36,7 +117,7 @@ export default function AdvancedMode(props) {
       </div>
 
       {tab === 'groups' && (
-        <GroupsTab S={S} updateGroup={updateGroup} />
+        <GroupsTab S={S} updateGroup={updateGroup} onRandomFillAll={fillAllRandomAdvanced} />
       )}
       {tab === 'third' && (
         <ThirdTab S={S} setThird={setThird} />

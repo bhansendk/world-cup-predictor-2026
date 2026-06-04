@@ -41,7 +41,7 @@ function loadState() {
 }
 
 export default function useLocalState() {
-  const [mode, setModeRaw] = useState(() => loadState()?.mode || null);
+  const [mode, setModeRaw] = useState(null);
   const [S, setS] = useState(() => normalizeS(loadState()?.S || EMPTY_S));
   const [FUN, setFUN] = useState(() => loadState()?.FUN || {});
   const [SIMPLE, setSIMPLE] = useState(() => normalizeSimple(loadState()?.SIMPLE));
@@ -57,9 +57,9 @@ export default function useLocalState() {
   // persist to localStorage on change
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ mode, S, FUN, SIMPLE }));
+      localStorage.setItem(LS_KEY, JSON.stringify({ S, FUN, SIMPLE }));
     } catch {}
-  }, [mode, S, FUN, SIMPLE]);
+  }, [S, FUN, SIMPLE]);
 
   const setMode = useCallback((m) => {
     setModeRaw(m);

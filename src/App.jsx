@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import useLocalState from './hooks/useLocalState.js';
 import useServerData from './hooks/useServerData.js';
 import ModeSelector from './components/ModeSelector.jsx';
+import ModeIntro from './components/ModeIntro.jsx';
 import SimpleMode from './components/SimpleMode.jsx';
 import AdvancedMode from './components/AdvancedMode.jsx';
 import WinnerBanner from './components/WinnerBanner.jsx';
@@ -12,6 +13,7 @@ export default function App() {
   const server = useServerData();
   const [showWarn, setShowWarn] = useState(false);
   const [pendingSimpleChange, setPendingSimpleChange] = useState(null);
+  const [showModeIntro, setShowModeIntro] = useState(false);
 
   const { mode, setMode, S, FUN, SIMPLE, myName, setMyName, updateGroup, setThird, updateBracketRound,
           updateFun, updateSimple, resetAll, setS, setFUN, setSIMPLE } = local;
@@ -58,8 +60,22 @@ export default function App() {
     setPendingSimpleChange(null);
   }, [pendingSimpleChange, updateSimple, setS]);
 
+  useEffect(() => {
+    setShowModeIntro(!!mode);
+  }, [mode]);
+
   if (!mode) {
     return <ModeSelector onSelect={setMode} />;
+  }
+
+  if (showModeIntro) {
+    return (
+      <ModeIntro
+        mode={mode}
+        onStart={() => setShowModeIntro(false)}
+        onBack={() => setMode(null)}
+      />
+    );
   }
 
   const champ = S.final?.['fin'] || SIMPLE?.top1 || null;
