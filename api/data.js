@@ -2,9 +2,63 @@ import { put, list } from '@vercel/blob';
 
 const BLOB_NAME = 'wc2026-tirsdagsklubben.json';
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123';
+const SIMPLE_REQUIRED_FIELDS = ['top1', 'top2', 'top3', 'top4', 'topscorer', 'golden_ball', 'most_yellow', 'most_goals_team'];
+const ADV_GROUP_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+const ADV_FUN_KEYS = ['topscorer', 'golden_ball', 'golden_glove', 'most_assist', 'most_goals_match', 'total_goals', 'most_yellow', 'most_red', 'own_goals', 'most_goals_team'];
+const R32_IDS = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12', 'm13', 'm14', 'm15', 'm16'];
+const R16_IDS = ['r16_0', 'r16_1', 'r16_2', 'r16_3', 'r16_4', 'r16_5', 'r16_6', 'r16_7'];
+const QF_IDS = ['qf_0', 'qf_1', 'qf_2', 'qf_3'];
+const SF_IDS = ['sf_0', 'sf_1'];
 
 // VM 2026 kickoff: 11. juni 2026 kl. 21:00 CEST (UTC+2) = 19:00 UTC
 const REVEAL_DATE = new Date('2026-06-11T19:00:00Z');
+
+function hasValue(v) {
+  if (typeof v === 'string') return v.trim().length > 0;
+  return v !== null && v !== undefined;
+}
+
+function hasAllKeys(obj, keys) {
+  return keys.every(k => hasValue(obj?.[k]));
+}
+
+function isSimplePredictionComplete(prediction) {
+  return hasAllKeys(prediction, SIMPLE_REQUIRED_FIELDS);
+}
+
+function isAdvancedPredictionComplete(prediction) {
+  const g = prediction?.g || {};
+  const third = prediction?.third || [];
+  const bracket = prediction?.bracket || {};
+  const fun = prediction?.fun || {};
+
+  const groupsOk = ADV_GROUP_KEYS.every(k => hasValue(g?.[k]?.p1) && hasValue(g?.[k]?.p2) && hasValue(g?.[k]?.p3));
+  const thirdOk = Array.isArray(third) && third.length === 8;
+  const bracketOk =
+    hasAllKeys(bracket?.r32 || {}, R32_IDS) &&
+    hasAllKeys(bracket?.r16 || {}, R16_IDS) &&
+    hasAllKeys(bracket?.qf || {}, QF_IDS) &&
+    hasAllKeys(bracket?.sf || {}, SF_IDS) &&
+    hasValue(bracket?.final?.fin) &&
+    hasValue(bracket?.bronze?.bronze_w);
+  const funOk = hasAllKeys(fun, ADV_FUN_KEYS);
+
+  return groupsOk && thirdOk && bracketOk && funOk;
+}
+
+function validatePrediction(mode, prediction) {
+  if (mode === 'simple') {
+    return isSimplePredictionComplete(prediction)
+      ? null
+      : 'Du skal udfylde alle felter i Hurtig mode før indsendelse.';
+  }
+  if (mode === 'advanced') {
+    return isAdvancedPredictionComplete(prediction)
+      ? null
+      : 'Du skal udfylde alle felter i Fodboldinteresseret mode før indsendelse.';
+  }
+  return 'Ugyldig mode';
+}
 
 async function readBlob() {
   try {
@@ -63,6 +117,8 @@ export default async function handler(req, res) {
       if (action === 'submit') {
         const { name, mode, prediction } = body;
         if (!name?.trim()) return res.status(400).json({ error: 'Navn mangler' });
+        const predictionError = validatePrediction(mode, prediction);
+        if (predictionError) return res.status(400).json({ error: predictionError });
         if (new Date() >= REVEAL_DATE) {
           return res.status(403).json({ error: 'Tilmelding er lukket. VM er startet.' });
         }

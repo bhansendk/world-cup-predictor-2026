@@ -1,15 +1,24 @@
 import { useState } from 'react';
 import { TeamSelect, FunQuestionSelect } from './FormFields.jsx';
 
+const SIMPLE_REQUIRED_FIELDS = ['top1', 'top2', 'top3', 'top4', 'topscorer', 'golden_ball', 'most_yellow', 'most_goals_team'];
+
+function isFilled(v) {
+  if (typeof v === 'string') return v.trim().length > 0;
+  return v !== null && v !== undefined;
+}
+
 export default function SimpleMode({ SIMPLE, onChange, onFunChange, FUN, serverData, onSubmit, loading, onReset, myName, setMyName }) {
   const [name, setName] = useState(myName || '');
   const [status, setStatus] = useState('');
   const revealTs = serverData?.revealDate ? Date.parse(serverData.revealDate) : Date.parse('2026-06-11T19:00:00Z');
   const registrationClosed = Number.isFinite(revealTs) ? Date.now() >= revealTs : false;
+  const isComplete = SIMPLE_REQUIRED_FIELDS.every(k => isFilled(SIMPLE?.[k]));
 
   const handleSubmit = async () => {
     if (registrationClosed) { setStatus('⛔ Tilmelding er lukket. VM er startet.'); return; }
     if (!name.trim()) { setStatus('Skriv dit navn først!'); return; }
+    if (!isComplete) { setStatus('❌ Udfyld alle felter i Hurtig mode før indsendelse.'); return; }
     const prediction = { ...SIMPLE };
     const res = await onSubmit(name.trim(), 'simple', prediction);
     if (res.ok) {
@@ -64,12 +73,13 @@ export default function SimpleMode({ SIMPLE, onChange, onFunChange, FUN, serverD
             value={name}
             onChange={e => setName(e.target.value)}
           />
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading || registrationClosed}>
+          <button className="btn-primary" onClick={handleSubmit} disabled={loading || registrationClosed || !isComplete || !name.trim()}>
             {loading ? 'Sender…' : registrationClosed ? 'Tilmelding lukket' : 'Send forudsigelse ✈️'}
           </button>
           <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil alt</button>
         </div>
         {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 11. juni 2026 kl. 21:00 dansk tid.</p>}
+        {!registrationClosed && !isComplete && <p className="info-txt">Udfyld alle 8 felter i Hurtig mode for at kunne indsende.</p>}
         {status && <p className="status-msg">{status}</p>}
       </div>
 

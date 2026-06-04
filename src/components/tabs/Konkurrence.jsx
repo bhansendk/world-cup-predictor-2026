@@ -1,8 +1,33 @@
 import { useState, useEffect } from 'react';
 import { calcScore, calcSimpleScore } from '../../lib/scoring.js';
+import { FUN_QUESTIONS, GROUPS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../../data/wc2026.js';
 
 // VM 2026 kickoff: 11. juni 2026 kl. 21:00 CEST = 19:00 UTC
 const REVEAL_DATE = new Date('2026-06-11T19:00:00Z');
+const SIMPLE_REQUIRED_FIELDS = ['top1', 'top2', 'top3', 'top4', 'topscorer', 'golden_ball', 'most_yellow', 'most_goals_team'];
+
+function isFilled(v) {
+  if (typeof v === 'string') return v.trim().length > 0;
+  return v !== null && v !== undefined;
+}
+
+function isSimpleComplete(simple) {
+  return SIMPLE_REQUIRED_FIELDS.every(k => isFilled(simple?.[k]));
+}
+
+function isAdvancedComplete(S, FUN) {
+  const groupsOk = Object.keys(GROUPS).every(k => isFilled(S?.g?.[k]?.p1) && isFilled(S?.g?.[k]?.p2) && isFilled(S?.g?.[k]?.p3));
+  const thirdOk = Array.isArray(S?.third) && S.third.length === 8;
+  const bracketOk =
+    R32.every(m => isFilled(S?.r32?.[m.id])) &&
+    R16_PAIRS.every((_, i) => isFilled(S?.r16?.[`r16_${i}`])) &&
+    QF_PAIRS.every((_, i) => isFilled(S?.qf?.[`qf_${i}`])) &&
+    SF_PAIRS.every((_, i) => isFilled(S?.sf?.[`sf_${i}`])) &&
+    isFilled(S?.final?.fin) &&
+    isFilled(S?.bronze?.bronze_w);
+  const funOk = FUN_QUESTIONS.every(q => isFilled(FUN?.[q.id]));
+  return groupsOk && thirdOk && bracketOk && funOk;
+}
 
 function useCountdown(target) {
   const [diff, setDiff] = useState(() => target - Date.now());
@@ -67,10 +92,18 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   const AR = serverData?.results || {};
   const revealed = serverData?.revealed ?? (Date.now() >= REVEAL_DATE.getTime());
   const registrationClosed = revealed;
+  const modeComplete = mode === 'simple' ? isSimpleComplete(SIMPLE) : isAdvancedComplete(S, FUN);
+  const canSubmit = !registrationClosed && !loading && !!name.trim() && modeComplete;
 
   const handleSubmit = async () => {
     if (registrationClosed) { setStatus('⛔ Tilmelding er lukket. VM er startet.'); return; }
     if (!name.trim()) { setStatus('Skriv dit navn!'); return; }
+    if (!modeComplete) {
+      setStatus(mode === 'simple'
+        ? '❌ Udfyld alle felter i Hurtig mode før indsendelse.'
+        : '❌ Udfyld alle felter i Fodboldinteresseret mode før indsendelse.');
+      return;
+    }
     const prediction = mode === 'simple'
       ? SIMPLE
       : { g: S.g, third: S.third, bracket: { r32: S.r32, r16: S.r16, qf: S.qf, sf: S.sf, final: S.final, bronze: S.bronze }, fun: FUN };
@@ -129,12 +162,19 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
             <option value="advanced">⭐ Fodboldinteresseret</option>
             <option value="simple">⚡ Hurtig</option>
           </select>
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading || registrationClosed}>
+          <button className="btn-primary" onClick={handleSubmit} disabled={!canSubmit}>
             {loading ? 'Sender…' : registrationClosed ? 'Tilmelding lukket' : 'Send ✈️'}
           </button>
           <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil</button>
         </div>
         {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 11. juni 2026 kl. 21:00 dansk tid.</p>}
+        {!registrationClosed && !modeComplete && (
+          <p className="info-txt">
+            {mode === 'simple'
+              ? 'Udfyld alle felter i Hurtig mode for at kunne indsende.'
+              : 'Udfyld grupper, 3\'ere, hele bracketen og alle sjove tips for at kunne indsende i Fodboldinteresseret mode.'}
+          </p>
+        )}
         {status && <p className="status-msg">{status}</p>}
       </div>
 
