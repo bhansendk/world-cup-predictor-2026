@@ -18,7 +18,7 @@ const TABS = [
 export default function AdvancedMode(props) {
   const [tab, setTab] = useState('groups');
   const { S, FUN, SIMPLE, updateGroup, setThird, onBracketPick, updateFun, updateSimple,
-          serverData, onSubmit, adminUpdate, adminDelete, adminClearAll, loading,
+      serverData, onSubmit, adminUpdate, adminVerify, adminDelete, adminClearAll, loading,
           fetchData, onReset, setS, setFUN, setSIMPLE, myName, setMyName } = props;
 
   return (
@@ -58,6 +58,7 @@ export default function AdvancedMode(props) {
         <ResultaterTab
           serverData={serverData}
           adminUpdate={adminUpdate}
+          adminVerify={adminVerify}
           adminDelete={adminDelete}
           adminClearAll={adminClearAll}
           loading={loading}

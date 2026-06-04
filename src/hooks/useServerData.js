@@ -1,5 +1,29 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+async function parseApiResponse(res) {
+  const raw = await res.text();
+  try {
+    const json = raw ? JSON.parse(raw) : {};
+    return { ok: res.ok, status: res.status, data: json };
+  } catch {
+    return {
+      ok: res.ok,
+      status: res.status,
+      data: null,
+      parseError: raw || 'Tomt svar fra server'
+    };
+  }
+}
+
+function buildApiError(parsed, fallback) {
+  if (parsed?.data?.error) return parsed.data.error;
+  if (parsed?.parseError) {
+    const short = parsed.parseError.slice(0, 120);
+    return `Serverfejl (${parsed.status}): ${short}`;
+  }
+  return fallback;
+}
+
 export default function useServerData() {
   const [serverData, setServerData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -32,8 +56,8 @@ export default function useServerData() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, mode, prediction })
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Fejl ved indsendelse');
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Fejl ved indsendelse'));
       await fetchData();
       return { ok: true };
     } catch (e) {
@@ -51,8 +75,8 @@ export default function useServerData() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ results, password })
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Forkert kode');
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
       await fetchData();
       return { ok: true };
     } catch (e) {
@@ -62,12 +86,30 @@ export default function useServerData() {
     }
   }, [fetchData]);
 
+  const adminVerifyPassword = useCallback(async (password) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/data?action=verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const adminDeleteOne = useCallback(async (name, password) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/data?name=${encodeURIComponent(name)}&password=${encodeURIComponent(password)}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Forkert kode');
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
       await fetchData();
       return { ok: true };
     } catch (e) {
@@ -81,8 +123,8 @@ export default function useServerData() {
     setLoading(true);
     try {
       const res = await fetch(`/api/data?action=clearAll&password=${encodeURIComponent(password)}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Forkert kode');
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
       await fetchData();
       return { ok: true };
     } catch (e) {
@@ -94,6 +136,6 @@ export default function useServerData() {
 
   return {
     serverData, loading, error, fetchData,
-    submitPrediction, adminUpdateResults, adminDeleteOne, adminClearAll
+    submitPrediction, adminUpdateResults, adminDeleteOne, adminClearAll, adminVerifyPassword
   };
 }

@@ -125,16 +125,20 @@ export const FUN_QUESTIONS = [
     desc: 'Hvem leverer flest assists i turneringen? Rangeret efter Bet365 odds.',
     type: 'select',
     options: [
-      'Kylian Mbappé (France)','Lamine Yamal (Spain)','Bukayo Saka (England)',
-      'Nico Williams (Spain)','Pedri (Spain)','Phil Foden (England)',
-      'Jude Bellingham (England)','Jamal Musiala (Germany)','Erling Haaland (Norway)',
-      'Vinicius Jr (Brazil)','Raphinha (Brazil)','Antoine Griezmann (France)',
-      'Cody Gakpo (Netherlands)','Gavi (Spain)','Luis Diaz (Colombia)',
-      'Dani Olmo (Spain)','Federico Valverde (Uruguay)','Trent Alexander-Arnold (England)',
-      'Leroy Sané (Germany)','Mohamed Salah (Egypt)','Rodrygo (Brazil)',
-      'Alexis Mac Allister (Argentina)','Harry Kane (England)','Julian Alvarez (Argentina)',
-      'Lautaro Martinez (Argentina)','Memphis Depay (Netherlands)','Richarlison (Brazil)',
-      'Marcus Rashford (England)','Anden spiller'
+      'Bruno Fernandes (Portugal)','Michael Olise (France)','Lamine Yamal (Spain)',
+      'Lionel Messi (Argentina)','Jeremy Doku (Belgium)','Vinicius Jr (Brazil)',
+      'Florian Wirtz (Germany)','Kevin De Bruyne (Belgium)','Kylian Mbappé (France)',
+      'Nico Williams (Spain)','Raphinha (Brazil)','Rayan Cherki (France)',
+      'Bukayo Saka (England)','Mikel Oyarzabal (Spain)','Ousmane Dembélé (France)',
+      'Dani Olmo (Spain)','Declan Rice (England)','Fabian Ruiz (Spain)',
+      'Jamal Musiala (Germany)','Pedri (Spain)','Ferran Torres (Spain)',
+      'Jude Bellingham (England)','Julian Alvarez (Argentina)','Leroy Sané (Germany)',
+      'Matheus Cunha (Brazil)','Morgan Rogers (England)','Neymar Jr (Brazil)',
+      'Bernardo Silva (Portugal)','Bradley Barcola (France)','Désiré Doué (France)',
+      'Harry Kane (England)','Joshua Kimmich (Germany)','Julian Ryerson (Norway)',
+      'Kai Havertz (Germany)','Luiz Henrique (Brazil)','Marcus Rashford (England)',
+      'Nuno Mendes (Portugal)','Alex Baena (Spain)','Anthony Gordon (England)',
+      'Anden spiller'
     ]
   },
   {
