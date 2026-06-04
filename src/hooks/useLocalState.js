@@ -37,7 +37,9 @@ function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export default function useLocalState() {
@@ -46,15 +48,20 @@ export default function useLocalState() {
   const [FUN, setFUN] = useState(() => loadState()?.FUN || {});
   const [SIMPLE, setSIMPLE] = useState(() => normalizeSimple(loadState()?.SIMPLE));
   const [myName, setMyNameRaw] = useState(() => {
-    try { return localStorage.getItem(LS_MYNAME_KEY) || ''; } catch { return ''; }
+    try {
+      return localStorage.getItem(LS_MYNAME_KEY) || '';
+    } catch {
+      return '';
+    }
   });
 
   const setMyName = useCallback((name) => {
     setMyNameRaw(name);
-    try { localStorage.setItem(LS_MYNAME_KEY, name); } catch {}
+    try {
+      localStorage.setItem(LS_MYNAME_KEY, name);
+    } catch {}
   }, []);
 
-  // persist to localStorage on change
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({ S, FUN, SIMPLE }));
