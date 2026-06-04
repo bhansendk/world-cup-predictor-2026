@@ -63,6 +63,9 @@ export default async function handler(req, res) {
       if (action === 'submit') {
         const { name, mode, prediction } = body;
         if (!name?.trim()) return res.status(400).json({ error: 'Navn mangler' });
+        if (new Date() >= REVEAL_DATE) {
+          return res.status(403).json({ error: 'Tilmelding er lukket. VM er startet.' });
+        }
         const data = await readBlob();
         const idx = data.colleagues.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
         const entry = { name: name.trim(), mode, prediction, submittedAt: new Date().toISOString() };

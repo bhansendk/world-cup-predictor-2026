@@ -66,8 +66,10 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   const colleagues = serverData?.colleagues || [];
   const AR = serverData?.results || {};
   const revealed = serverData?.revealed ?? (Date.now() >= REVEAL_DATE.getTime());
+  const registrationClosed = revealed;
 
   const handleSubmit = async () => {
+    if (registrationClosed) { setStatus('⛔ Tilmelding er lukket. VM er startet.'); return; }
     if (!name.trim()) { setStatus('Skriv dit navn!'); return; }
     const prediction = mode === 'simple'
       ? SIMPLE
@@ -127,11 +129,12 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
             <option value="advanced">⭐ Fodboldinteresseret</option>
             <option value="simple">⚡ Hurtig</option>
           </select>
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Sender…' : 'Send ✈️'}
+          <button className="btn-primary" onClick={handleSubmit} disabled={loading || registrationClosed}>
+            {loading ? 'Sender…' : registrationClosed ? 'Tilmelding lukket' : 'Send ✈️'}
           </button>
           <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil</button>
         </div>
+        {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 11. juni 2026 kl. 21:00 dansk tid.</p>}
         {status && <p className="status-msg">{status}</p>}
       </div>
 
