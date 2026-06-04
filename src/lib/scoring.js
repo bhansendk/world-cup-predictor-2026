@@ -120,18 +120,25 @@ export function calcSimpleScore(simple, AR) {
   const arSFL0 = arSF0 ? (arQF0 && arQF0 !== arSF0 ? arQF0 : (arQF1 && arQF1 !== arSF0 ? arQF1 : null)) : null;
   const arSFL1 = arSF1 ? (arQF2 && arQF2 !== arSF1 ? arQF2 : (arQF3 && arQF3 !== arSF1 ? arQF3 : null)) : null;
   const arSFLosers = [arSFL0, arSFL1].filter(Boolean);
+  const arTop4 = [arChamp, arRunnerUp, ...arSFLosers].filter(Boolean);
 
-  if (arChamp   && simple.top1 === arChamp)                   { pts += 15; bd.push('Mester: +15'); }
-  else if (arChamp && arSFLosers.concat(arRunnerUp).filter(Boolean).includes(simple.top1)) { pts += 5; bd.push('#1 i top4: +5'); }
+  const scoreTop4Slot = (picked, exactTeam, exactPts, wrongPosPts, exactLabel) => {
+    if (!picked) return;
+    if (exactTeam && picked === exactTeam) {
+      pts += exactPts;
+      bd.push(exactLabel + ': +' + exactPts);
+      return;
+    }
+    if (arTop4.includes(picked)) {
+      pts += wrongPosPts;
+      bd.push('Top 4 men forkert placering: +' + wrongPosPts);
+    }
+  };
 
-  if (arRunnerUp && simple.top2 === arRunnerUp)               { pts += 10; bd.push('#2: +10'); }
-  else if (arRunnerUp && arSFLosers.concat(arChamp).filter(Boolean).includes(simple.top2)) { pts += 5; bd.push('#2 i top4: +5'); }
-
-  if (simple.top3 && arSFLosers.includes(simple.top3))        { pts += 5;  bd.push('#3/4: +5'); }
-  else if (simple.top3 && (simple.top3 === arChamp || simple.top3 === arRunnerUp)) { pts += 3; bd.push('#3 i top4 men finalist: +3'); }
-
-  if (simple.top4 && arSFLosers.includes(simple.top4))        { pts += 5;  bd.push('#3/4: +5'); }
-  else if (simple.top4 && (simple.top4 === arChamp || simple.top4 === arRunnerUp)) { pts += 3; bd.push('#4 i top4 men finalist: +3'); }
+  scoreTop4Slot(simple.top1, arChamp, 15, 3, 'Mester');
+  scoreTop4Slot(simple.top2, arRunnerUp, 10, 3, 'Runner-up');
+  scoreTop4Slot(simple.top3, arSFLosers[0], 5, 3, 'Nr. 3/4');
+  scoreTop4Slot(simple.top4, arSFLosers[1], 5, 3, 'Nr. 3/4');
 
   const afun = AR.fun || {};
   if (afun.topscorer    && simple.topscorer    === afun.topscorer)    { pts += 10; bd.push('Topscorer: +10'); }

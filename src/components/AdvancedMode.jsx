@@ -104,6 +104,18 @@ export default function AdvancedMode(props) {
 
   return (
     <div className="mode-container">
+      <div className="section-card">
+        <h2>📘 Pointsystem - Fodboldinteresseret</h2>
+        <ul className="points-list">
+          <li>Grupper: 1. plads = 4, 2. plads = 3, 3. plads = 2 point</li>
+          <li>8 bedste 3'ere: 2 point pr. korrekt gruppe</li>
+          <li>Bracket: R32 = 2, R16 = 4, Kvartfinale = 6, Semifinale = 8 point pr. korrekt vinder</li>
+          <li>Finale: korrekt finalist = 10 point pr. hold, mester = 15 point</li>
+          <li>Bronzekamp: korrekt vinder = 5 point</li>
+          <li>Sjove tips: point gives pr. sporgsmaal (inkl. spillerforudsigelser som Topscorer og Gyldne Bold)</li>
+        </ul>
+      </div>
+
       <div className="tab-bar">
         {TABS.map(t => (
           <button

@@ -77,6 +77,20 @@ export default function SimpleMode({ SIMPLE, onChange, onFunChange, FUN, serverD
       </div>
 
       <div className="section-card">
+        <h2>📘 Pointsystem - Hurtig mode</h2>
+        <ul className="points-list">
+          <li>Mester korrekt: 15 point</li>
+          <li>Runner-up korrekt: 10 point</li>
+          <li>Nr. 3 og Nr. 4 korrekt: 5 point hver</li>
+          <li>Hold i top 4 men forkert placering: 3 point</li>
+          <li>Topscorer (spiller): 10 point</li>
+          <li>Gyldne Bold (spiller): 10 point</li>
+          <li>Flest gule kort (hold): 6 point</li>
+          <li>Flest mål (hold): 8 point</li>
+        </ul>
+      </div>
+
+      <div className="section-card">
         <h2>📤 Send din forudsigelse</h2>
         <div className="submit-row">
           <input
