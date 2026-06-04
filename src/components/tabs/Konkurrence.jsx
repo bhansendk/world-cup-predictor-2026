@@ -4,29 +4,65 @@ import { FUN_QUESTIONS, GROUPS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../..
 
 // VM 2026 kickoff: 11. juni 2026 kl. 21:00 CEST = 19:00 UTC
 const REVEAL_DATE = new Date('2026-06-11T19:00:00Z');
-const SIMPLE_REQUIRED_FIELDS = ['top1', 'top2', 'top3', 'top4', 'topscorer', 'golden_ball', 'most_yellow', 'most_goals_team'];
+const SIMPLE_FIELDS = [
+  { key: 'top1', label: 'Mester' },
+  { key: 'top2', label: 'Runner-up' },
+  { key: 'top3', label: 'Nr. 3' },
+  { key: 'top4', label: 'Nr. 4' },
+  { key: 'topscorer', label: 'Topscorer' },
+  { key: 'golden_ball', label: 'Gyldne Bold' },
+  { key: 'most_yellow', label: 'Flest gule kort - hold' },
+  { key: 'most_goals_team', label: 'Flest mål - hold' }
+];
 
 function isFilled(v) {
   if (typeof v === 'string') return v.trim().length > 0;
   return v !== null && v !== undefined;
 }
 
-function isSimpleComplete(simple) {
-  return SIMPLE_REQUIRED_FIELDS.every(k => isFilled(simple?.[k]));
+function getSimpleMissing(simple) {
+  return SIMPLE_FIELDS.filter(f => !isFilled(simple?.[f.key])).map(f => f.label);
 }
 
-function isAdvancedComplete(S, FUN) {
-  const groupsOk = Object.keys(GROUPS).every(k => isFilled(S?.g?.[k]?.p1) && isFilled(S?.g?.[k]?.p2) && isFilled(S?.g?.[k]?.p3));
-  const thirdOk = Array.isArray(S?.third) && S.third.length === 8;
-  const bracketOk =
-    R32.every(m => isFilled(S?.r32?.[m.id])) &&
-    R16_PAIRS.every((_, i) => isFilled(S?.r16?.[`r16_${i}`])) &&
-    QF_PAIRS.every((_, i) => isFilled(S?.qf?.[`qf_${i}`])) &&
-    SF_PAIRS.every((_, i) => isFilled(S?.sf?.[`sf_${i}`])) &&
-    isFilled(S?.final?.fin) &&
-    isFilled(S?.bronze?.bronze_w);
-  const funOk = FUN_QUESTIONS.every(q => isFilled(FUN?.[q.id]));
-  return groupsOk && thirdOk && bracketOk && funOk;
+function getAdvancedMissing(S, FUN) {
+  const missing = [];
+  const groupMissing = [];
+
+  Object.keys(GROUPS).forEach(k => {
+    const g = S?.g?.[k] || {};
+    const slots = [];
+    if (!isFilled(g.p1)) slots.push('1. plads');
+    if (!isFilled(g.p2)) slots.push('2. plads');
+    if (!isFilled(g.p3)) slots.push('3. plads');
+    if (slots.length) groupMissing.push(`${GROUPS[k].name}: ${slots.join('/')}`);
+  });
+
+  if (groupMissing.length) {
+    missing.push(`Grupper (${groupMissing.length}): ${groupMissing.slice(0, 4).join(', ')}${groupMissing.length > 4 ? ', ...' : ''}`);
+  }
+
+  const thirdCount = Array.isArray(S?.third) ? S.third.length : 0;
+  if (thirdCount < 8) missing.push(`8 bedste 3'ere: mangler ${8 - thirdCount}`);
+
+  const missingR32 = R32.filter(m => !isFilled(S?.r32?.[m.id])).length;
+  const missingR16 = R16_PAIRS.filter((_, i) => !isFilled(S?.r16?.[`r16_${i}`])).length;
+  const missingQF = QF_PAIRS.filter((_, i) => !isFilled(S?.qf?.[`qf_${i}`])).length;
+  const missingSF = SF_PAIRS.filter((_, i) => !isFilled(S?.sf?.[`sf_${i}`])).length;
+  const missingFinal = !isFilled(S?.final?.fin) ? 1 : 0;
+  const missingBronze = !isFilled(S?.bronze?.bronze_w) ? 1 : 0;
+
+  if (missingR32 || missingR16 || missingQF || missingSF || missingFinal || missingBronze) {
+    missing.push(
+      `Bracket: R32(${missingR32}), R16(${missingR16}), KF(${missingQF}), SF(${missingSF}), Finale(${missingFinal}), Bronze(${missingBronze})`
+    );
+  }
+
+  const missingFun = FUN_QUESTIONS.filter(q => !isFilled(FUN?.[q.id])).map(q => q.title);
+  if (missingFun.length) {
+    missing.push(`Sjove tips (${missingFun.length}): ${missingFun.slice(0, 5).join(', ')}${missingFun.length > 5 ? ', ...' : ''}`);
+  }
+
+  return missing;
 }
 
 function useCountdown(target) {
@@ -92,16 +128,18 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   const AR = serverData?.results || {};
   const revealed = serverData?.revealed ?? (Date.now() >= REVEAL_DATE.getTime());
   const registrationClosed = revealed;
-  const modeComplete = mode === 'simple' ? isSimpleComplete(SIMPLE) : isAdvancedComplete(S, FUN);
-  const canSubmit = !registrationClosed && !loading && !!name.trim() && modeComplete;
+  const simpleMissing = getSimpleMissing(SIMPLE);
+  const advancedMissing = getAdvancedMissing(S, FUN);
+  const modeComplete = mode === 'simple' ? simpleMissing.length === 0 : advancedMissing.length === 0;
+  const canSubmit = !registrationClosed && !loading;
 
   const handleSubmit = async () => {
     if (registrationClosed) { setStatus('⛔ Tilmelding er lukket. VM er startet.'); return; }
     if (!name.trim()) { setStatus('Skriv dit navn!'); return; }
     if (!modeComplete) {
       setStatus(mode === 'simple'
-        ? '❌ Udfyld alle felter i Hurtig mode før indsendelse.'
-        : '❌ Udfyld alle felter i Fodboldinteresseret mode før indsendelse.');
+        ? `⚠️ Mangler i Hurtig mode: ${simpleMissing.join(', ')}`
+        : `⚠️ Mangler i Fodboldinteresseret mode: ${advancedMissing.join(' | ')}`);
       return;
     }
     const prediction = mode === 'simple'
@@ -171,8 +209,8 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
         {!registrationClosed && !modeComplete && (
           <p className="info-txt">
             {mode === 'simple'
-              ? 'Udfyld alle felter i Hurtig mode for at kunne indsende.'
-              : 'Udfyld grupper, 3\'ere, hele bracketen og alle sjove tips for at kunne indsende i Fodboldinteresseret mode.'}
+              ? `Manglende felter: ${simpleMissing.join(', ')}.`
+              : `Manglende felter: ${advancedMissing.join(' | ')}.`}
           </p>
         )}
         {status && <p className="status-msg">{status}</p>}
