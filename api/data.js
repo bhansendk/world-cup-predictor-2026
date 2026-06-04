@@ -74,7 +74,7 @@ async function writeBlob(data) {
     throw new Error('BLOB_READ_WRITE_TOKEN mangler i Vercel Environment Variables');
   }
   await put(BLOB_NAME, JSON.stringify(data), {
-    access: 'public',
+    access: 'private',
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json'
