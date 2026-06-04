@@ -88,7 +88,7 @@ export default function GroupsTab({ S, updateGroup }) {
         <h2>🏟️ Grupperunde</h2>
         <p>Klik på et hold for at rangere dem 1., 2. og 3. i gruppen. 2 point for 3'er, 3 pt for 2'er, 4 pt for 1'er.</p>
         <div className="submit-row" style={{ marginTop: 12 }}>
-          <button className="btn-accent btn-sm" onClick={randomFill}>🎲 Udfyld tilfældigt</button>
+          <button className="btn-accent btn-sm" onClick={randomFill}>🎲 Udfyld alt tilfældigt</button>
           <button className="btn-ghost btn-sm" onClick={clearAll}>🗑️ Nulstil alle gruppevalg</button>
         </div>
         {allFilled && <div className="success-banner">✅ Alle grupper er udfyldt! Gå videre til 3'erne.</div>}
