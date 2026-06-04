@@ -3,6 +3,36 @@ import { useState, useEffect, useCallback } from 'react';
 const LS_KEY = 'vm2026_tirsdagsklubben';
 const LS_MYNAME_KEY = 'vm2026_tirsdagsklubben_myname';
 
+const EMPTY_S = { g: {}, third: [], r32: {}, r16: {}, qf: {}, sf: {}, final: {}, bronze: {} };
+const EMPTY_SIMPLE = {
+  top1: null,
+  top2: null,
+  top3: null,
+  top4: null,
+  topscorer: null,
+  golden_ball: null,
+  most_yellow: null,
+  most_goals_team: null
+};
+
+function normalizeS(input) {
+  const s = input || {};
+  return {
+    g: s.g || {},
+    third: Array.isArray(s.third) ? s.third : [],
+    r32: s.r32 || {},
+    r16: s.r16 || {},
+    qf: s.qf || {},
+    sf: s.sf || {},
+    final: s.final || {},
+    bronze: s.bronze || {}
+  };
+}
+
+function normalizeSimple(input) {
+  return { ...EMPTY_SIMPLE, ...(input || {}) };
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -12,9 +42,9 @@ function loadState() {
 
 export default function useLocalState() {
   const [mode, setModeRaw] = useState(() => loadState()?.mode || null);
-  const [S, setS]   = useState(() => loadState()?.S || {g:{}, third:[], r32:{}, r16:{}, qf:{}, sf:{}, final:{}, bronze:{}});
+  const [S, setS] = useState(() => normalizeS(loadState()?.S || EMPTY_S));
   const [FUN, setFUN] = useState(() => loadState()?.FUN || {});
-  const [SIMPLE, setSIMPLE] = useState(() => loadState()?.SIMPLE || {top1:null,top2:null,top3:null,top4:null,topscorer:null,golden_ball:null,most_yellow:null,most_goals_team:null});
+  const [SIMPLE, setSIMPLE] = useState(() => normalizeSimple(loadState()?.SIMPLE));
   const [myName, setMyNameRaw] = useState(() => {
     try { return localStorage.getItem(LS_MYNAME_KEY) || ''; } catch { return ''; }
   });
@@ -64,15 +94,15 @@ export default function useLocalState() {
   }, []);
 
   const resetAll = useCallback(() => {
-    setS({g:{}, third:[], r32:{}, r16:{}, qf:{}, sf:{}, final:{}, bronze:{}});
+    setS(EMPTY_S);
     setFUN({});
-    setSIMPLE({top1:null,top2:null,top3:null,top4:null,topscorer:null,golden_ball:null,most_yellow:null,most_goals_team:null});
+    setSIMPLE(EMPTY_SIMPLE);
   }, []);
 
   const loadFromObject = useCallback((obj) => {
-    if (obj.S) setS(obj.S);
+    if (obj.S) setS(normalizeS(obj.S));
     if (obj.FUN) setFUN(obj.FUN);
-    if (obj.SIMPLE) setSIMPLE(obj.SIMPLE);
+    if (obj.SIMPLE) setSIMPLE(normalizeSimple(obj.SIMPLE));
     if (obj.mode) setModeRaw(obj.mode);
   }, []);
 
