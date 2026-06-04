@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import GroupsTab from './tabs/Groups.jsx';
 import ThirdTab from './tabs/Third.jsx';
 import BracketTab from './tabs/Bracket.jsx';
@@ -19,7 +19,13 @@ const TABS = [
 ];
 
 export default function AdvancedMode(props) {
-  const [tab, setTab] = useState('groups');
+  const [tab, setTab] = useState(() => {
+    try {
+      return localStorage.getItem('vm2026_active_tab') || 'groups';
+    } catch {
+      return 'groups';
+    }
+  });
   const { S, FUN, SIMPLE, updateGroup, setThird, onBracketPick, updateFun, updateSimple,
       serverData, onSubmit, adminUpdate, adminVerify, adminDelete, adminClearAll, loading,
           fetchData, onReset, setS, setFUN, setSIMPLE, myName, setMyName } = props;
@@ -101,6 +107,12 @@ export default function AdvancedMode(props) {
     setFUN(fun);
     setSIMPLE(prev => ({ ...prev, ...extractSimpleFromAdvanced(nextS, fun) }));
   };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vm2026_active_tab', tab);
+    } catch {}
+  }, [tab]);
 
   return (
     <div className="mode-container">

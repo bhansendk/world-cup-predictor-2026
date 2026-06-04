@@ -110,7 +110,11 @@ export default function useServerData() {
       const res = await fetch(`/api/data?name=${encodeURIComponent(name)}&password=${encodeURIComponent(password)}`, { method: 'DELETE' });
       const parsed = await parseApiResponse(res);
       if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
-      await fetchData();
+      setServerData(prev => {
+        if (!prev) return prev;
+        const current = Array.isArray(prev.colleagues) ? prev.colleagues : [];
+        return { ...prev, colleagues: current.filter(c => c.name !== name) };
+      });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message };
@@ -125,7 +129,10 @@ export default function useServerData() {
       const res = await fetch(`/api/data?action=clearAll&password=${encodeURIComponent(password)}`, { method: 'DELETE' });
       const parsed = await parseApiResponse(res);
       if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
-      await fetchData();
+      setServerData(prev => {
+        if (!prev) return prev;
+        return { ...prev, colleagues: [] };
+      });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message };

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import useLocalState from './hooks/useLocalState.js';
 import useServerData from './hooks/useServerData.js';
 import ModeSelector from './components/ModeSelector.jsx';
@@ -60,12 +60,8 @@ export default function App() {
     setPendingSimpleChange(null);
   }, [pendingSimpleChange, updateSimple, setS]);
 
-  useEffect(() => {
-    setShowModeIntro(!!mode);
-  }, [mode]);
-
   if (!mode) {
-    return <ModeSelector onSelect={setMode} />;
+    return <ModeSelector onSelect={(m) => { setMode(m); setShowModeIntro(true); }} />;
   }
 
   if (showModeIntro) {
