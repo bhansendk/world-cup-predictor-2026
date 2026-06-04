@@ -14,6 +14,13 @@ const SF_IDS = ['sf_0', 'sf_1'];
 // VM 2026 kickoff: 11. juni 2026 kl. 21:00 CEST (UTC+2) = 19:00 UTC
 const REVEAL_DATE = new Date('2026-06-11T19:00:00Z');
 
+function normalizeName(name) {
+  return String(name || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
 function hasValue(v) {
   if (typeof v === 'string') return v.trim().length > 0;
   return v !== null && v !== undefined;
@@ -127,8 +134,9 @@ export default async function handler(req, res) {
           return res.status(403).json({ error: 'Tilmelding er lukket. VM er startet.' });
         }
         const data = await readBlob();
-        const idx = data.colleagues.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
-        const entry = { name: name.trim(), mode, prediction, submittedAt: new Date().toISOString() };
+        const normalized = normalizeName(name);
+        const idx = data.colleagues.findIndex(c => normalizeName(c.name) === normalized);
+        const entry = { name: name.trim().replace(/\s+/g, ' '), mode, prediction, submittedAt: new Date().toISOString() };
         if (idx >= 0) data.colleagues[idx] = entry;
         else data.colleagues.push(entry);
         await writeBlob(data);
