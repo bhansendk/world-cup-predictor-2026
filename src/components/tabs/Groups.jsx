@@ -46,17 +46,9 @@ function GroupCard({ groupKey, group, gs, onPick }) {
   );
 }
 
-export default function GroupsTab({ S, updateGroup, onRandomFillAll }) {
+export default function GroupsTab({ S, updateGroup, onRandomFillAll, onResetAll }) {
   const handlePick = (gKey, ranks) => {
     Object.entries(ranks).forEach(([field, val]) => updateGroup(gKey, field, val));
-  };
-
-  const clearAll = () => {
-    Object.keys(GROUPS).forEach(gKey => {
-      updateGroup(gKey, 'p1', null);
-      updateGroup(gKey, 'p2', null);
-      updateGroup(gKey, 'p3', null);
-    });
   };
 
   const allFilled = Object.keys(GROUPS).every(k => {
@@ -71,7 +63,7 @@ export default function GroupsTab({ S, updateGroup, onRandomFillAll }) {
         <p>Klik på et hold for at rangere dem 1., 2. og 3. i gruppen. 2 point for 3'er, 3 pt for 2'er, 4 pt for 1'er.</p>
         <div className="submit-row" style={{ marginTop: 12 }}>
           <button className="btn-accent btn-sm" onClick={() => onRandomFillAll?.()}>🎲 Udfyld alt tilfældigt</button>
-          <button className="btn-ghost btn-sm" onClick={clearAll}>🗑️ Nulstil alle gruppevalg</button>
+          <button className="btn-ghost btn-sm" onClick={() => onResetAll?.()}>🗑️ Nulstil alle valg</button>
         </div>
         {allFilled && <div className="success-banner">✅ Alle grupper er udfyldt! Gå videre til 3'erne.</div>}
       </div>

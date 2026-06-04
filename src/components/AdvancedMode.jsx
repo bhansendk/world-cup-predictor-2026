@@ -129,7 +129,7 @@ export default function AdvancedMode(props) {
       </div>
 
       {tab === 'groups' && (
-        <GroupsTab S={S} updateGroup={updateGroup} onRandomFillAll={fillAllRandomAdvanced} />
+        <GroupsTab S={S} updateGroup={updateGroup} onRandomFillAll={fillAllRandomAdvanced} onResetAll={onReset} />
       )}
       {tab === 'third' && (
         <ThirdTab S={S} setThird={setThird} />

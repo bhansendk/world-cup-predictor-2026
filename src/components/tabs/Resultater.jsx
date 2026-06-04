@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ALL_TEAMS, GROUPS, FUN_QUESTIONS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../../data/wc2026.js';
 import { FlagSpan, TeamSelect } from '../FormFields.jsx';
 
@@ -30,6 +30,11 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
   const [isAuthed, setIsAuthed] = useState(false);
   const [status, setStatus] = useState('');
   const [resultState, setResultState] = useState(() => ({ ...emptyResults(), ...(serverData?.results || {}) }));
+  const [localColleagues, setLocalColleagues] = useState(colleagues || []);
+
+  useEffect(() => {
+    setLocalColleagues(colleagues || []);
+  }, [colleagues]);
 
   const handleLogin = async () => {
     if (!pw.trim()) {
@@ -68,7 +73,10 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
     }
     if (!confirm('Slet alle deltagere?')) return;
     const res = await adminClearAll(pw);
-    if (res.ok) setStatus('✅ Alle slettet');
+    if (res.ok) {
+      setLocalColleagues([]);
+      setStatus('✅ Alle slettet');
+    }
     else setStatus('❌ ' + res.error);
   };
 
@@ -78,7 +86,10 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
       return;
     }
     const res = await adminDelete(name, pw);
-    if (res.ok) setStatus(`✅ ${name} slettet`);
+    if (res.ok) {
+      setLocalColleagues(prev => prev.filter(c => c.name !== name));
+      setStatus(`✅ ${name} slettet`);
+    }
     else setStatus('❌ ' + res.error);
   };
 
@@ -155,7 +166,7 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
       <div className="section-card">
         <h3>👥 Deltagere</h3>
         <div className="participants-list">
-          {colleagues.map(c => (
+          {localColleagues.map(c => (
             <div key={c.name} className="participant-chip">
               {c.name} <span className="chip-mode">{c.mode === 'simple' ? '⚡' : '⭐'}</span>
               <button className="btn-danger-sm" onClick={() => handleDeleteOne(c.name)}>✕</button>
