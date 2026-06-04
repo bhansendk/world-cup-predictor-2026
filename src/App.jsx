@@ -1,0 +1,133 @@
+import { useState, useCallback } from 'react';
+import useLocalState from './hooks/useLocalState.js';
+import useServerData from './hooks/useServerData.js';
+import ModeSelector from './components/ModeSelector.jsx';
+import SimpleMode from './components/SimpleMode.jsx';
+import AdvancedMode from './components/AdvancedMode.jsx';
+import WinnerBanner from './components/WinnerBanner.jsx';
+import { extractSimpleFromAdvanced } from './lib/scoring.js';
+
+export default function App() {
+  const local = useLocalState();
+  const server = useServerData();
+  const [showWarn, setShowWarn] = useState(false);
+  const [pendingSimpleChange, setPendingSimpleChange] = useState(null);
+
+  const { mode, setMode, S, FUN, SIMPLE, myName, setMyName, updateGroup, setThird, updateBracketRound,
+          updateFun, updateSimple, resetAll, setS, setFUN, setSIMPLE } = local;
+
+  // Sync bracket → simple
+  const syncBracketToSimple = useCallback((newS) => {
+    const derived = extractSimpleFromAdvanced(newS, FUN);
+    setSIMPLE(prev => ({ ...prev, ...derived }));
+  }, [FUN, setSIMPLE]);
+
+  // When bracket round changes, update S and sync simple
+  const handleBracketPick = useCallback((round, id, team) => {
+    setS(prev => {
+      const store = prev[round] || {};
+      const newStore = store[id] === team
+        ? (({ [id]: _, ...rest }) => rest)(store)
+        : { ...store, [id]: team };
+      const newS = { ...prev, [round]: newStore };
+      if (['qf','sf','final','bronze'].includes(round)) {
+        setTimeout(() => syncBracketToSimple(newS), 0);
+      }
+      return newS;
+    });
+  }, [setS, syncBracketToSimple]);
+
+  // Sync simple top4 → bracket (warn if advanced filled)
+  const handleSimpleChange = useCallback((field, value) => {
+    const hasAdvanced = Object.values(S.sf || {}).some(Boolean) || Object.values(S.final || {}).some(Boolean);
+    if (hasAdvanced && ['top1','top2','top3','top4'].includes(field)) {
+      setPendingSimpleChange({ field, value });
+      setShowWarn(true);
+      return;
+    }
+    updateSimple(field, value);
+  }, [S, updateSimple]);
+
+  const confirmSimpleChange = useCallback(() => {
+    if (pendingSimpleChange) {
+      updateSimple(pendingSimpleChange.field, pendingSimpleChange.value);
+      // Clear bracket sync fields
+      setS(prev => ({ ...prev, sf: {}, final: {}, bronze: {} }));
+    }
+    setShowWarn(false);
+    setPendingSimpleChange(null);
+  }, [pendingSimpleChange, updateSimple, setS]);
+
+  if (!mode) {
+    return <ModeSelector onSelect={setMode} />;
+  }
+
+  const champ = S.final?.['fin'] || SIMPLE?.top1 || null;
+
+  return (
+    <div className="app-root">
+      <header className="app-header">
+        <span className="app-logo">⚽</span>
+        <h1>VM 2026 – Tirsdagsklubben</h1>
+        <button className="btn-ghost btn-sm" onClick={() => setMode(null)}>
+          Skift mode
+        </button>
+      </header>
+
+      {champ && <WinnerBanner champ={champ} />}
+
+      {showWarn && (
+        <div className="modal-overlay" onClick={() => setShowWarn(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>⚠️ Advarsel</h3>
+            <p>Du er ved at ændre Hurtig mode. Dette vil nulstille din avancerede bracket (Semifinale, Finale og Bronzekamp).</p>
+            <div className="modal-btns">
+              <button className="btn-danger" onClick={confirmSimpleChange}>Fortsæt og nulstil bracket</button>
+              <button className="btn-ghost" onClick={() => { setShowWarn(false); setPendingSimpleChange(null); }}>Annuller</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mode === 'simple' ? (
+        <SimpleMode
+          SIMPLE={SIMPLE}
+          S={S}
+          onChange={handleSimpleChange}
+          onFunChange={updateFun}
+          FUN={FUN}
+          serverData={server.serverData}
+          onSubmit={server.submitPrediction}
+          loading={server.loading}
+          onReset={resetAll}
+          myName={myName}
+          setMyName={setMyName}
+        />
+      ) : (
+        <AdvancedMode
+          S={S}
+          FUN={FUN}
+          SIMPLE={SIMPLE}
+          updateGroup={updateGroup}
+          setThird={setThird}
+          onBracketPick={handleBracketPick}
+          updateFun={updateFun}
+          updateSimple={handleSimpleChange}
+          serverData={server.serverData}
+          onSubmit={server.submitPrediction}
+          adminUpdate={server.adminUpdateResults}
+          adminDelete={server.adminDeleteOne}
+          adminClearAll={server.adminClearAll}
+          loading={server.loading}
+          fetchData={server.fetchData}
+          onReset={resetAll}
+          setS={setS}
+          setFUN={setFUN}
+          setSIMPLE={setSIMPLE}
+          myName={myName}
+          setMyName={setMyName}
+        />
+      )}
+    </div>
+  );
+}
