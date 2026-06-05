@@ -4,6 +4,8 @@ import { FUN_QUESTIONS, GROUPS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../..
 
 // Reveal: 1. juni 2026 kl. 21:00 CEST = 19:00 UTC
 const REVEAL_DATE = new Date('2026-06-01T19:00:00Z');
+// Admin kan se alles forudsigelser i komprimeret visning før turneringsstart
+const ADMIN_PREVIEW_UNTIL = new Date('2026-06-11T19:00:00Z');
 const SIMPLE_FIELDS = [
   { key: 'top1', label: 'Mester' },
   { key: 'top2', label: 'Runner-up' },
@@ -211,6 +213,8 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   const colleagues = serverData?.colleagues || [];
   const AR = serverData?.results || {};
   const revealed = serverData?.revealed ?? (Date.now() >= REVEAL_DATE.getTime());
+  const adminPreviewOpen = isAdmin && Date.now() < ADMIN_PREVIEW_UNTIL.getTime();
+  const canSeePredictions = revealed || isAdmin;
   const registrationClosed = revealed;
   const simpleMissing = getSimpleMissing(SIMPLE);
   const advancedMissing = getAdvancedMissing(S, FUN);
@@ -258,7 +262,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   };
 
   const hasResults = AR && Object.keys(AR).length > 0;
-  const sorted = hasResults && (revealed || isAdmin)
+  const sorted = hasResults && canSeePredictions
     ? [...colleagues].sort((a, b) => {
         const scoreOf = c => {
           if (!c.prediction) return 0;
@@ -345,6 +349,9 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
           )}
         </div>
         {!isAdmin && <p className="info-txt">Log ind som admin for at se alles forudsigelser før reveal.</p>}
+        {isAdmin && adminPreviewOpen && (
+          <p className="info-txt">✅ Som admin ser du den komprimerede visning af alles forudsigelser før 11. juni kl. 21:00.</p>
+        )}
         {adminStatus && <p className="status-msg">{adminStatus}</p>}
       </div>
 
@@ -403,10 +410,10 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
               <ScoreRow
                 key={c.name}
                 colleague={c}
-                AR={revealed || isAdmin ? AR : {}}
+                AR={canSeePredictions ? AR : {}}
                 rank={i + 1}
                 isOwn={!!isOwn}
-                showPrediction={revealed || isAdmin}
+                showPrediction={canSeePredictions}
               />
             );
           })}

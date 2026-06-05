@@ -6,7 +6,7 @@ export default function ModeSelector({ onSelect }) {
         <h1>VM 2026 Forudsigelse</h1>
         <p>Tirsdagsklubben</p>
         <p className="mode-compare">
-          Hurtig mode er den korte version med top 4 og faa svar. Fodboldinteresseret er den fulde version med grupper,
+          Hurtig mode er den korte version med top 4 og få svar. Fodboldinteresseret er den fulde version med grupper,
           bracket og alle sjove tips.
         </p>
       </div>

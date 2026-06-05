@@ -124,7 +124,7 @@ export default function AdvancedMode(props) {
           <li>Bracket: point gives for hvor langt et hold kommer (ikke præcis kamp/slot): R16 = 2, KF = 4, SF = 6, Finale = 8</li>
           <li>Finale: korrekt finalist = 6 point pr. hold, mester = 15 point</li>
           <li>Bronzekamp: korrekt vinder = 5 point</li>
-          <li>Sjove tips: point gives pr. sporgsmaal (inkl. spillerforudsigelser som Topscorer og Gyldne Bold)</li>
+          <li>Sjove tips: point gives pr. spørgsmål (inkl. spillerforudsigelser som Topscorer og Gyldne Bold)</li>
         </ul>
       </div>
 

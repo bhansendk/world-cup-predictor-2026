@@ -4,8 +4,8 @@ const modeConfig = {
     title: 'Hurtig mode',
     subtitle: 'Kort version med de vigtigste bud',
     bullets: [
-      'Vaelg top 4: mester, runner-up, nr. 3 og nr. 4',
-      'Svar paa 4 centrale sjove tips',
+      'Vælg top 4: mester, runner-up, nr. 3 og nr. 4',
+      'Svar på 4 centrale sjove tips',
       'Hurtig at udfylde og god til alle'
     ],
     cta: 'Start Hurtig mode',
@@ -14,11 +14,11 @@ const modeConfig = {
   advanced: {
     icon: 'Advanced',
     title: 'Fodboldinteresseret',
-    subtitle: 'Fuld version for dig der vil gaa i dybden',
+    subtitle: 'Fuld version for dig der vil gå i dybden',
     bullets: [
-      "Udfyld alle grupper og vaelg 8 bedste 3'ere",
+      "Udfyld alle grupper og vælg 8 bedste 3'ere",
       'Forudsig hele bracketen fra R32 til finale og bronze',
-      'Svar paa alle 10 sjove tips for maksimal score'
+      'Svar på alle 10 sjove tips for maksimal score'
     ],
     cta: 'Start Fodboldinteresseret',
     accentClass: 'mode-intro-advanced'
