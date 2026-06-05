@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { calcScore, calcSimpleScore, extractSimpleFromAdvanced } from '../../lib/scoring.js';
 import { FUN_QUESTIONS, GROUPS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../../data/wc2026.js';
+import BracketTab from './Bracket.jsx';
 
 // Reveal: 1. juni 2026 kl. 21:00 CEST = 19:00 UTC
 const REVEAL_DATE = new Date('2026-06-01T19:00:00Z');
@@ -99,12 +100,33 @@ function getSimplePrediction(mode, prediction) {
   return extractSimpleFromAdvanced(prediction?.bracket || {}, prediction?.fun || {});
 }
 
-function roundLines(roundData, fallbackPrefix) {
-  if (!roundData || typeof roundData !== 'object') return [];
-  return Object.entries(roundData).map(([key, val], idx) => {
-    const label = key || `${fallbackPrefix} ${idx + 1}`;
-    return `${label}: ${compactList(val)}`;
+function groupTeamsWithPlacement(groupKey, groupPrediction) {
+  const teams = GROUPS[groupKey]?.teams || [];
+  const p1 = groupPrediction?.p1 || null;
+  const p2 = groupPrediction?.p2 || null;
+  const p3 = groupPrediction?.p3 || null;
+  const ordered = [p1, p2, p3].filter(Boolean);
+  const unique = [];
+  ordered.forEach(team => {
+    if (!unique.includes(team)) unique.push(team);
   });
+  teams.forEach(team => {
+    if (!unique.includes(team)) unique.push(team);
+  });
+  return unique.slice(0, 4);
+}
+
+function predictionToBracketState(prediction) {
+  return {
+    g: prediction?.g || {},
+    third: prediction?.third || [],
+    r32: prediction?.bracket?.r32 || {},
+    r16: prediction?.bracket?.r16 || {},
+    qf: prediction?.bracket?.qf || {},
+    sf: prediction?.bracket?.sf || {},
+    final: prediction?.bracket?.final || {},
+    bronze: prediction?.bracket?.bronze || {}
+  };
 }
 
 function PredictionCompact({ prediction, mode, mainTab, advancedTab, onMainTabChange, onAdvancedTabChange }) {
@@ -144,10 +166,8 @@ function PredictionCompact({ prediction, mode, mainTab, advancedTab, onMainTabCh
   const fun = prediction?.fun || {};
   const funAnswered = FUN_QUESTIONS.filter(q => isFilled(fun[q.id])).length;
   const groupKeys = Object.keys(GROUPS);
-  const r32Lines = roundLines(bracket?.r32, 'R32');
-  const r16Lines = roundLines(bracket?.r16, 'R16');
-  const qfLines = roundLines(bracket?.qf, 'KF');
-  const sfLines = roundLines(bracket?.sf, 'SF');
+  const thirdSelected = new Set(prediction?.third || []);
+  const bracketState = predictionToBracketState(prediction);
   const funRows = FUN_QUESTIONS.map(q => ({
     id: q.id,
     label: q.title.replace(/^\S+\s*/, ''),
@@ -196,15 +216,37 @@ function PredictionCompact({ prediction, mode, mainTab, advancedTab, onMainTabCh
           <div className="pred-group-grid">
             {groupKeys.map(key => {
               const group = g[key] || {};
+              const teams = groupTeamsWithPlacement(key, group);
               return (
                 <div key={key} className="pred-group-card">
                   <div className="pred-group-title">{key}</div>
-                  <div className="pred-group-line">1) {compactList(group.p1)}</div>
-                  <div className="pred-group-line">2) {compactList(group.p2)}</div>
-                  <div className="pred-group-line">3) {compactList(group.p3)}</div>
+                  {teams.length === 0 && <div className="pred-group-line">-</div>}
+                  {teams.map((teamName, idx) => {
+                    const place = idx + 1;
+                    const isThirdPick = place === 3 && thirdSelected.has(key);
+                    const isDirect = place <= 2;
+                    const cls = 'pred-group-line' + (isDirect ? ' is-direct' : '') + (isThirdPick ? ' is-third-pick' : '');
+                    return (
+                      <div key={`${key}-${teamName}-${place}`} className={cls}>
+                        {place}) {teamName}
+                        {isDirect && <span className="pred-team-tag">Videre</span>}
+                        {isThirdPick && <span className="pred-team-tag pred-team-tag-third">3'er valgt</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
+          </div>
+
+          <div className="pred-selected-third">
+            <div className="pred-item-label">Valgte 8 bedste 3'ere</div>
+            <div className="pred-third-chip-wrap">
+              {(prediction?.third || []).map(groupKey => (
+                <span key={`third-${groupKey}`} className="pred-third-chip">{groupKey}</span>
+              ))}
+              {(prediction?.third || []).length === 0 && <span className="pred-third-chip pred-third-chip-empty">Ingen valgt</span>}
+            </div>
           </div>
         </>
       )}
@@ -212,31 +254,14 @@ function PredictionCompact({ prediction, mode, mainTab, advancedTab, onMainTabCh
       {advancedTab === 'bracket' && (
         <>
           <div className="pred-section-title">Hele bracket'en</div>
-          <div className="pred-bracket-grid">
-            <div className="pred-block">
-              <div className="pred-block-title">R32</div>
-              {r32Lines.length ? r32Lines.map(line => <div key={line} className="pred-line">{line}</div>) : <div className="pred-line">-</div>}
-            </div>
-            <div className="pred-block">
-              <div className="pred-block-title">R16</div>
-              {r16Lines.length ? r16Lines.map(line => <div key={line} className="pred-line">{line}</div>) : <div className="pred-line">-</div>}
-            </div>
-            <div className="pred-block">
-              <div className="pred-block-title">Kvartfinale</div>
-              {qfLines.length ? qfLines.map(line => <div key={line} className="pred-line">{line}</div>) : <div className="pred-line">-</div>}
-            </div>
-            <div className="pred-block">
-              <div className="pred-block-title">Semifinale</div>
-              {sfLines.length ? sfLines.map(line => <div key={line} className="pred-line">{line}</div>) : <div className="pred-line">-</div>}
-            </div>
-            <div className="pred-block">
-              <div className="pred-block-title">Finale</div>
-              <div className="pred-line">Mester: {compactList(bracket?.final?.fin)}</div>
-            </div>
-            <div className="pred-block">
-              <div className="pred-block-title">Bronzekamp</div>
-              <div className="pred-line">Bronzevinder: {compactList(bracket?.bronze?.bronze_w)}</div>
-            </div>
+          <div className="pred-bracket-live">
+            <BracketTab
+              S={bracketState}
+              onPick={null}
+              showHeader={false}
+              notReadyMessage="Denne forudsigelse mangler data for at vise hele bracket'en."
+              readOnly={true}
+            />
           </div>
         </>
       )}

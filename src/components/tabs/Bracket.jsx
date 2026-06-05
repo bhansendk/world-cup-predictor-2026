@@ -23,7 +23,7 @@ function flagImg(team) {
   return `<span class="fi fi-${code}" style="margin-right:5px"></span>`;
 }
 
-export default function BracketTab({ S, onPick, showHeader = true, notReadyMessage }) {
+export default function BracketTab({ S, onPick, showHeader = true, notReadyMessage, readOnly = false }) {
   const containerRef = useRef(null);
 
   const isReady = () => {
@@ -64,10 +64,12 @@ export default function BracketTab({ S, onPick, showHeader = true, notReadyMessa
       div.className = 'bm';
       [tA, tB].forEach(t => {
         const s = document.createElement('div');
-        s.className = 'bm-slot' + (t ? (w === t ? ' win' : w ? ' lose' : '') : ' tbd');
+        s.className = 'bm-slot' + (readOnly ? ' readonly' : '') + (t ? (w === t ? ' win' : w ? ' lose' : '') : ' tbd');
         if (t) {
           s.innerHTML = flagImg(t) + '<span>' + t + '</span>';
-          s.onclick = () => onPick(rk, id, t);
+          if (!readOnly && typeof onPick === 'function') {
+            s.onclick = () => onPick(rk, id, t);
+          }
         } else {
           s.textContent = 'TBD';
         }
