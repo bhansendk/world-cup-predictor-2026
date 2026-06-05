@@ -129,6 +129,8 @@ export default function App() {
           onSubmit={server.submitPrediction}
           adminUpdate={server.adminUpdateResults}
           adminVerify={server.adminVerifyPassword}
+          adminLogout={server.adminLogout}
+          isAdmin={server.isAdmin}
           adminDelete={server.adminDeleteOne}
           adminClearAll={server.adminClearAll}
           loading={server.loading}

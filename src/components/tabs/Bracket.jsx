@@ -23,7 +23,7 @@ function flagImg(team) {
   return `<span class="fi fi-${code}" style="margin-right:5px"></span>`;
 }
 
-export default function BracketTab({ S, onPick }) {
+export default function BracketTab({ S, onPick, showHeader = true, notReadyMessage }) {
   const containerRef = useRef(null);
 
   const isReady = () => {
@@ -40,7 +40,8 @@ export default function BracketTab({ S, onPick }) {
     container.innerHTML = '';
 
     if (!isReady()) {
-      container.innerHTML = '<div class="bracket-not-ready">Udfyld grupperunden og vælg de 8 bedste 3\'ere for at se bracket\'en.</div>';
+      const msg = notReadyMessage || 'Udfyld grupperunden og vælg de 8 bedste 3\'ere for at se bracket\'en.';
+      container.innerHTML = '<div class="bracket-not-ready">' + msg + '</div>';
       return;
     }
 
@@ -179,10 +180,12 @@ export default function BracketTab({ S, onPick }) {
 
   return (
     <div className="tab-content">
-      <div className="section-header">
-        <h2>🏆 Bracket</h2>
-        <p>Klik på et hold for at vælge vinderen. Klik igen for at fortryde.</p>
-      </div>
+      {showHeader && (
+        <div className="section-header">
+          <h2>🏆 Bracket</h2>
+          <p>Klik på et hold for at vælge vinderen. Klik igen for at fortryde.</p>
+        </div>
+      )}
       <div className="bracket-scroll">
         <div ref={containerRef} className="bracket" />
       </div>

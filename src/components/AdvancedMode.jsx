@@ -28,7 +28,7 @@ export default function AdvancedMode(props) {
   });
   const { S, FUN, SIMPLE, updateGroup, setThird, onBracketPick, updateFun, updateSimple,
       serverData, onSubmit, adminUpdate, adminVerify, adminDelete, adminClearAll, loading,
-          fetchData, onReset, setS, setFUN, setSIMPLE, myName, setMyName } = props;
+        fetchData, onReset, setS, setFUN, setSIMPLE, myName, setMyName, isAdmin, adminLogout } = props;
 
   const randomPick = (arr) => arr[Math.floor(Math.random() * arr.length)] || null;
 
@@ -119,10 +119,10 @@ export default function AdvancedMode(props) {
       <div className="section-card">
         <h2>📘 Pointsystem - Fodboldinteresseret</h2>
         <ul className="points-list">
-          <li>Grupper: 1. plads = 4, 2. plads = 3, 3. plads = 2 point</li>
+          <li>Grupper: 1./2./3. plads giver 4/3/2 point, men du mister 1 point pr. forkert placering (kun for hold der går videre)</li>
           <li>8 bedste 3'ere: 2 point pr. korrekt gruppe</li>
-          <li>Bracket: R32 = 2, R16 = 4, Kvartfinale = 6, Semifinale = 8 point pr. korrekt vinder</li>
-          <li>Finale: korrekt finalist = 10 point pr. hold, mester = 15 point</li>
+          <li>Bracket: point gives for hvor langt et hold kommer (ikke præcis kamp/slot): R16 = 2, KF = 4, SF = 6, Finale = 8</li>
+          <li>Finale: korrekt finalist = 6 point pr. hold, mester = 15 point</li>
           <li>Bronzekamp: korrekt vinder = 5 point</li>
           <li>Sjove tips: point gives pr. sporgsmaal (inkl. spillerforudsigelser som Topscorer og Gyldne Bold)</li>
         </ul>
@@ -157,6 +157,9 @@ export default function AdvancedMode(props) {
           S={S} FUN={FUN} SIMPLE={SIMPLE}
           serverData={serverData} onSubmit={onSubmit} loading={loading}
           onReset={onReset} myName={myName} setMyName={setMyName}
+          adminVerify={adminVerify}
+          adminLogout={adminLogout}
+          isAdmin={isAdmin}
         />
       )}
       {tab === 'results' && (

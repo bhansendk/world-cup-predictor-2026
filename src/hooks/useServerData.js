@@ -28,11 +28,14 @@ export default function useServerData() {
   const [serverData, setServerData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState(null);
+  const [adminPassword, setAdminPassword] = useState('');
   const pollRef = useRef(null);
+  const isAdmin = !!adminPassword;
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/data');
+      const query = adminPassword ? `?password=${encodeURIComponent(adminPassword)}` : '';
+      const res = await fetch('/api/data' + query);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setServerData(data);
@@ -40,7 +43,7 @@ export default function useServerData() {
     } catch (e) {
       setError(e.message);
     }
-  }, []);
+  }, [adminPassword]);
 
   useEffect(() => {
     fetchData();
@@ -96,12 +99,17 @@ export default function useServerData() {
       });
       const parsed = await parseApiResponse(res);
       if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
+      setAdminPassword(password);
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message };
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const adminLogout = useCallback(() => {
+    setAdminPassword('');
   }, []);
 
   const adminDeleteOne = useCallback(async (name, password) => {
@@ -143,6 +151,7 @@ export default function useServerData() {
 
   return {
     serverData, loading, error, fetchData,
-    submitPrediction, adminUpdateResults, adminDeleteOne, adminClearAll, adminVerifyPassword
+    submitPrediction, adminUpdateResults, adminDeleteOne, adminClearAll, adminVerifyPassword,
+    adminLogout, isAdmin
   };
 }

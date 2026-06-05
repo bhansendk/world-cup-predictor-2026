@@ -1,5 +1,7 @@
-import { GROUPS, R32, R16_PAIRS, QF_PAIRS, SF_PAIRS, FUN_PTS } from '../data/wc2026.js';
+import { GROUPS, FUN_PTS } from '../data/wc2026.js';
 import { COMBO } from '../data/combo.js';
+
+const GROUP_BASE_POINTS = { 1: 4, 2: 3, 3: 2 };
 
 // ── Resolve bracket slot to team name ────────────────────────────
 export function resolveSlot(slot, g, third) {
@@ -48,10 +50,26 @@ export function calcScore(tips, bracket, fun, AR) {
   // Group stage
   Object.keys(GROUPS).forEach(k => {
     const t = (tips || {})[k] || {}, a = (AR.g || {})[k] || {};
+    const aRanks = { [a.p1]: 1, [a.p2]: 2, [a.p3]: 3 };
+    const advThird = (AR.third || []).includes(k);
     let gp = 0;
-    if (t.p1 && t.p1 === a.p1) { pts += 4; gp += 4; }
-    if (t.p2 && t.p2 === a.p2) { pts += 3; gp += 3; }
-    if (t.p3 && t.p3 === a.p3) { pts += 2; gp += 2; }
+
+    [['p1', 1], ['p2', 2], ['p3', 3]].forEach(([slot, predictedRank]) => {
+      const team = t[slot];
+      const actualRank = aRanks[team];
+      if (!team || !actualRank) return;
+
+      const advanced = actualRank <= 2 || (actualRank === 3 && advThird);
+      if (!advanced) return;
+
+      const base = GROUP_BASE_POINTS[predictedRank] || 0;
+      const penalty = Math.abs(predictedRank - actualRank);
+      const score = Math.max(base - penalty, 0);
+
+      pts += score;
+      gp += score;
+    });
+
     if (gp) breakdown.push('Gruppe ' + k + ': +' + gp);
   });
 
@@ -64,29 +82,38 @@ export function calcScore(tips, bracket, fun, AR) {
   cThird.forEach(g => { if (arThird.includes(g)) { pts += 2; tp += 2; } });
   if (tp) breakdown.push('3\'ere: +' + tp);
 
-  // Knockout rounds
+  // Knockout rounds (team progression, not exact bracket slot)
   const rounds = [
-    { store: AR.r32 || {}, pStore: bracket.r32 || {}, rPts: 2, label: 'R32' },
-    { store: AR.r16 || {}, pStore: bracket.r16 || {}, rPts: 4, label: 'R16' },
-    { store: AR.qf  || {}, pStore: bracket.qf  || {}, rPts: 6, label: 'KF' },
-    { store: AR.sf  || {}, pStore: bracket.sf  || {}, rPts: 8, label: 'SF' },
+    { store: AR.r32 || {}, pStore: bracket.r32 || {}, rPts: 2, label: 'R16 nået' },
+    { store: AR.r16 || {}, pStore: bracket.r16 || {}, rPts: 4, label: 'KF nået' },
+    { store: AR.qf  || {}, pStore: bracket.qf  || {}, rPts: 6, label: 'SF nået' },
+    { store: AR.sf  || {}, pStore: bracket.sf  || {}, rPts: 8, label: 'Finale nået' },
   ];
   rounds.forEach(({ store, pStore, rPts, label }) => {
     let rp = 0;
-    Object.entries(store).forEach(([id, w]) => {
-      if (pStore[id] === w) { pts += rPts; rp += rPts; }
+    const actualTeams = new Set(Object.values(store).filter(Boolean));
+    const predictedTeams = new Set(Object.values(pStore).filter(Boolean));
+    predictedTeams.forEach(team => {
+      if (actualTeams.has(team)) {
+        pts += rPts;
+        rp += rPts;
+      }
     });
     if (rp) breakdown.push(label + ': +' + rp);
   });
 
-  // Final: 10pt per correct finalist + 15pt champion
+  // Final: 6pt per correct finalist + 15pt champion
   const arFin  = AR.final?.['fin'] || null;
-  const arSF0  = AR.sf?.['sf_0'] || null, arSF1 = AR.sf?.['sf_1'] || null;
-  const pSF0   = bracket.sf?.['sf_0'] || null, pSF1 = bracket.sf?.['sf_1'] || null;
+  const arFinalists = new Set(Object.values(AR.sf || {}).filter(Boolean));
+  const pFinalists = new Set(Object.values(bracket.sf || {}).filter(Boolean));
   const pFinW  = bracket.final?.['fin'] || null;
   let fp = 0;
-  if (arSF0 && pSF0 === arSF0) { pts += 10; fp += 10; }
-  if (arSF1 && pSF1 === arSF1) { pts += 10; fp += 10; }
+  pFinalists.forEach(team => {
+    if (arFinalists.has(team)) {
+      pts += 6;
+      fp += 6;
+    }
+  });
   if (arFin && pFinW === arFin) { pts += 15; fp += 15; }
   if (fp) breakdown.push('Final/Mester: +' + fp);
 

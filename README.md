@@ -147,15 +147,13 @@ vm2026-tirsdagsklubben/
 ### Fodboldinteresseret mode ⭐
 | Runde | Point |
 |---|---|
-| Gruppeplacering 1'er | 4 pt |
-| Gruppeplacering 2'er | 3 pt |
-| Gruppeplacering 3'er | 2 pt |
+| Gruppeplacering for hold der går videre (1/2 eller bedste 3'er) | 1'er=4, 2'er=3, 3'er=2 minus 1 pt pr. placering fejl |
 | Korrekt 3'er videre | 2 pt |
-| R32-vinder | 2 pt |
-| R16-vinder | 4 pt |
-| Kvartfinalist | 6 pt |
-| Semifinalist | 8 pt |
-| Finalist | 10 pt |
+| Hold der når R16 | 2 pt |
+| Hold der når kvartfinale | 4 pt |
+| Hold der når semifinale | 6 pt |
+| Hold der når finale | 8 pt |
+| Finalist | 6 pt |
 | Mester | 15 pt |
 | Bronzekamp-vinder | 5 pt |
 | + alle sjove tips | se app |

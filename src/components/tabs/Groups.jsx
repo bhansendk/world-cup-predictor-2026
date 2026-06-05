@@ -60,7 +60,7 @@ export default function GroupsTab({ S, updateGroup, onRandomFillAll, onResetAll 
     <div className="tab-content">
       <div className="section-header">
         <h2>🏟️ Grupperunde</h2>
-        <p>Klik på et hold for at rangere dem 1., 2. og 3. i gruppen. 2 point for 3'er, 3 pt for 2'er, 4 pt for 1'er.</p>
+        <p>Klik på et hold for at rangere dem 1., 2. og 3. i gruppen. Point for videre hold: 1'er = 4, 2'er = 3, 3'er = 2, minus 1 point pr. forkert placering.</p>
         <div className="submit-row" style={{ marginTop: 12 }}>
           <button className="btn-accent btn-sm" onClick={() => onRandomFillAll?.()}>🎲 Udfyld alt tilfældigt</button>
           <button className="btn-ghost btn-sm" onClick={() => onResetAll?.()}>🗑️ Nulstil alle valg</button>

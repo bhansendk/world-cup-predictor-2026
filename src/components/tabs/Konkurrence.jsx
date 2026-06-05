@@ -84,7 +84,44 @@ function formatCountdown(ms) {
   return `${d}d ${String(h).padStart(2,'0')}t ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`;
 }
 
-function ScoreRow({ colleague, AR, rank, isOwn }) {
+function simplePredictionLines(prediction) {
+  if (!prediction) return [];
+  return [
+    `Mester: ${prediction.top1 || '-'}`,
+    `Runner-up: ${prediction.top2 || '-'}`,
+    `Nr. 3: ${prediction.top3 || '-'}`,
+    `Nr. 4: ${prediction.top4 || '-'}`,
+    `Topscorer: ${prediction.topscorer || '-'}`,
+    `Gyldne Bold: ${prediction.golden_ball || '-'}`,
+    `Flest gule kort: ${prediction.most_yellow || '-'}`,
+    `Flest mål (hold): ${prediction.most_goals_team || '-'}`
+  ];
+}
+
+function advancedPredictionLines(prediction) {
+  if (!prediction) return [];
+  const groups = Object.keys(GROUPS).map(k => {
+    const g = prediction?.g?.[k] || {};
+    return `${k}: 1) ${g.p1 || '-'} 2) ${g.p2 || '-'} 3) ${g.p3 || '-'}`;
+  });
+
+  const lines = [
+    `Bedste 3'ere: ${(prediction.third || []).join(', ') || '-'}`,
+    `R32 vindere: ${Object.values(prediction?.bracket?.r32 || {}).filter(Boolean).join(', ') || '-'}`,
+    `R16 vindere: ${Object.values(prediction?.bracket?.r16 || {}).filter(Boolean).join(', ') || '-'}`,
+    `KF vindere: ${Object.values(prediction?.bracket?.qf || {}).filter(Boolean).join(', ') || '-'}`,
+    `SF vindere: ${Object.values(prediction?.bracket?.sf || {}).filter(Boolean).join(', ') || '-'}`,
+    `Mester: ${prediction?.bracket?.final?.fin || '-'}`,
+    `Bronzevinder: ${prediction?.bracket?.bronze?.bronze_w || '-'}`,
+    '',
+    'Grupper:',
+    ...groups
+  ];
+
+  return lines;
+}
+
+function ScoreRow({ colleague, AR, rank, isOwn, showPrediction }) {
   const [open, setOpen] = useState(false);
   const { name, mode, prediction } = colleague;
   const isSimple = mode === 'simple';
@@ -99,6 +136,7 @@ function ScoreRow({ colleague, AR, rank, isOwn }) {
   }
 
   const medals = ['🥇','🥈','🥉'];
+  const predictionLines = isSimple ? simplePredictionLines(prediction) : advancedPredictionLines(prediction);
 
   return (
     <div
@@ -114,14 +152,19 @@ function ScoreRow({ colleague, AR, rank, isOwn }) {
           {breakdown.map((b, i) => <div key={i} className="bd-item">{b}</div>)}
         </div>
       )}
+      {open && showPrediction && prediction && (
+        <pre className="lb-prediction" onClick={e => e.stopPropagation()}>{predictionLines.join('\n')}</pre>
+      )}
     </div>
   );
 }
 
-export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, loading, onReset, myName, setMyName }) {
+export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, loading, onReset, myName, setMyName, adminVerify, adminLogout, isAdmin }) {
   const [name, setName] = useState(myName || '');
   const [status, setStatus] = useState('');
   const [mode, setMode] = useState('advanced');
+  const [adminPw, setAdminPw] = useState('');
+  const [adminStatus, setAdminStatus] = useState('');
   const countdown = useCountdown(REVEAL_DATE.getTime());
 
   const colleagues = serverData?.colleagues || [];
@@ -132,6 +175,25 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   const advancedMissing = getAdvancedMissing(S, FUN);
   const modeComplete = mode === 'simple' ? simpleMissing.length === 0 : advancedMissing.length === 0;
   const canSubmit = !registrationClosed && !loading;
+
+  const handleAdminLogin = async () => {
+    if (!adminPw.trim()) {
+      setAdminStatus('❌ Indtast admin-adgangskode');
+      return;
+    }
+    const res = await adminVerify(adminPw);
+    if (res.ok) {
+      setAdminStatus('✅ Admin login aktiv');
+      return;
+    }
+    setAdminStatus('❌ ' + res.error);
+  };
+
+  const handleAdminLogout = () => {
+    adminLogout();
+    setAdminPw('');
+    setAdminStatus('');
+  };
 
   const handleSubmit = async () => {
     if (registrationClosed) { setStatus('⛔ Tilmelding er lukket. VM er startet.'); return; }
@@ -155,7 +217,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   };
 
   const hasResults = AR && Object.keys(AR).length > 0;
-  const sorted = hasResults && revealed
+  const sorted = hasResults && (revealed || isAdmin)
     ? [...colleagues].sort((a, b) => {
         const scoreOf = c => {
           if (!c.prediction) return 0;
@@ -217,9 +279,29 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
       </div>
 
       <div className="section-card">
-        <h3>🏆 {revealed ? 'Stilling' : 'Deltagere'} ({colleagues.length})</h3>
+        <h3>🔐 Admin-visning</h3>
+        <div className="admin-auth">
+          <input
+            type="password"
+            className="name-input"
+            placeholder="Admin-adgangskode"
+            value={adminPw}
+            onChange={e => setAdminPw(e.target.value)}
+          />
+          {!isAdmin ? (
+            <button className="btn-accent btn-sm" onClick={handleAdminLogin} disabled={loading}>Log ind</button>
+          ) : (
+            <button className="btn-ghost btn-sm" onClick={handleAdminLogout} disabled={loading}>Log ud</button>
+          )}
+        </div>
+        {!isAdmin && <p className="info-txt">Log ind som admin for at se alles forudsigelser før reveal.</p>}
+        {adminStatus && <p className="status-msg">{adminStatus}</p>}
+      </div>
 
-        {!revealed && (
+      <div className="section-card">
+        <h3>🏆 {(revealed || isAdmin) ? 'Stilling' : 'Deltagere'} ({colleagues.length})</h3>
+
+        {!revealed && !isAdmin && (
           <p className="info-txt" style={{marginBottom:12}}>
             👤 Du kan kun se din egen forudsigelse indtil VM starter. Alle forudsigelser afsløres 11. juni kl. 21:00.
           </p>
@@ -232,7 +314,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
         <div className="lb-list">
           {sorted.map((c, i) => {
             const isOwn = myName && c.name.toLowerCase() === myName.toLowerCase();
-            if (!revealed && !isOwn) {
+            if (!revealed && !isAdmin && !isOwn) {
               // Show name + mode + submitted, but no prediction/score
               return (
                 <div key={c.name} className="lb-row lb-locked">
@@ -244,7 +326,14 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
               );
             }
             return (
-              <ScoreRow key={c.name} colleague={c} AR={revealed ? AR : {}} rank={i + 1} isOwn={!!isOwn} />
+              <ScoreRow
+                key={c.name}
+                colleague={c}
+                AR={revealed || isAdmin ? AR : {}}
+                rank={i + 1}
+                isOwn={!!isOwn}
+                showPrediction={revealed || isAdmin}
+              />
             );
           })}
           {colleagues.length === 0 && <p className="info-txt">Ingen forudsigelser endnu.</p>}

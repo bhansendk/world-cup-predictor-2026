@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ALL_TEAMS, GROUPS, FUN_QUESTIONS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../../data/wc2026.js';
 import { FlagSpan, TeamSelect } from '../FormFields.jsx';
+import BracketTab from './Bracket.jsx';
 
 const ROUND_LABELS = {
   r32: 'R32',
@@ -35,6 +36,10 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
   useEffect(() => {
     setLocalColleagues(colleagues || []);
   }, [colleagues]);
+
+  useEffect(() => {
+    setResultState({ ...emptyResults(), ...(serverData?.results || {}) });
+  }, [serverData?.results]);
 
   const handleLogin = async () => {
     if (!pw.trim()) {
@@ -129,7 +134,7 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
       ...prev,
       [round]: {
         ...(prev[round] || {}),
-        [id]: team
+        [id]: (prev[round] || {})[id] === team ? null : team
       }
     }));
   };
@@ -243,87 +248,16 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
 
       <div className="section-card">
         <h3>🏆 Knockout-resultater</h3>
-
-        <h4 style={{ marginBottom: 10, color: '#94a3b8' }}>{ROUND_LABELS.r32}</h4>
-        <div className="form-grid">
-          {R32.map((m, i) => (
-            <TeamSelect
-              key={m.id}
-              label={`Kamp ${i + 1}`}
-              value={(resultState.r32 || {})[m.id] || null}
-              onChange={(v) => setKnockoutWinner('r32', m.id, v)}
-              placeholder="- Vælg vinder -"
-            />
-          ))}
-        </div>
-
-        <h4 style={{ margin: '18px 0 10px', color: '#94a3b8' }}>{ROUND_LABELS.r16}</h4>
-        <div className="form-grid">
-          {R16_PAIRS.map((_, i) => {
-            const id = `r16_${i}`;
-            return (
-              <TeamSelect
-                key={id}
-                label={`Kamp ${i + 1}`}
-                value={(resultState.r16 || {})[id] || null}
-                onChange={(v) => setKnockoutWinner('r16', id, v)}
-                placeholder="- Vælg vinder -"
-              />
-            );
-          })}
-        </div>
-
-        <h4 style={{ margin: '18px 0 10px', color: '#94a3b8' }}>{ROUND_LABELS.qf}</h4>
-        <div className="form-grid">
-          {QF_PAIRS.map((_, i) => {
-            const id = `qf_${i}`;
-            return (
-              <TeamSelect
-                key={id}
-                label={`Kamp ${i + 1}`}
-                value={(resultState.qf || {})[id] || null}
-                onChange={(v) => setKnockoutWinner('qf', id, v)}
-                placeholder="- Vælg vinder -"
-              />
-            );
-          })}
-        </div>
-
-        <h4 style={{ margin: '18px 0 10px', color: '#94a3b8' }}>{ROUND_LABELS.sf}</h4>
-        <div className="form-grid">
-          {SF_PAIRS.map((_, i) => {
-            const id = `sf_${i}`;
-            return (
-              <TeamSelect
-                key={id}
-                label={`Kamp ${i + 1}`}
-                value={(resultState.sf || {})[id] || null}
-                onChange={(v) => setKnockoutWinner('sf', id, v)}
-                placeholder="- Vælg vinder -"
-              />
-            );
-          })}
-        </div>
-
-        <h4 style={{ margin: '18px 0 10px', color: '#94a3b8' }}>{ROUND_LABELS.final}</h4>
-        <div className="form-grid">
-          <TeamSelect
-            label="VM-vinder"
-            value={(resultState.final || {}).fin || null}
-            onChange={(v) => setKnockoutWinner('final', 'fin', v)}
-            placeholder="- Vælg mester -"
-          />
-        </div>
-
-        <h4 style={{ margin: '18px 0 10px', color: '#94a3b8' }}>{ROUND_LABELS.bronze}</h4>
-        <div className="form-grid">
-          <TeamSelect
-            label="Vinder af bronzekamp"
-            value={(resultState.bronze || {}).bronze_w || null}
-            onChange={(v) => setKnockoutWinner('bronze', 'bronze_w', v)}
-            placeholder="- Vælg bronzevinder -"
-          />
-        </div>
+        <p style={{ color: '#94a3b8', marginBottom: 12 }}>
+          Udfyld grupper og 8 bedste 3'ere. Herefter kan knockout resultater sættes direkte i bracketen.
+          Bracketen opdateres automatisk når nye resultater hentes fra serveren.
+        </p>
+        <BracketTab
+          S={resultState}
+          onPick={setKnockoutWinner}
+          showHeader={false}
+          notReadyMessage="Udfyld grupper og 8 bedste 3'ere for at aktivere knockout-bracketen."
+        />
       </div>
 
       <div className="section-card">

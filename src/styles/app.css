@@ -196,6 +196,7 @@ a.lb-name-link:hover{color:#3b82f6}
 .lb-pts { font-weight: bold; color: #10b981; font-size: 1.1em; margin-left: auto; }
 .lb-breakdown { width: 100%; margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px; }
 .bd-item { background: #1e293b; border-radius: 4px; padding: 4px 8px; font-size: .8em; color: #94a3b8; }
+.lb-prediction { width: 100%; margin-top: 8px; background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 10px; color: #cbd5e1; font-size: .78em; line-height: 1.45; white-space: pre-wrap; overflow-x: auto; }
 .participants-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .participant-chip { display: flex; align-items: center; gap: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 20px; padding: 6px 12px; font-size: .85em; }
 .chip-mode { color: #94a3b8; }
