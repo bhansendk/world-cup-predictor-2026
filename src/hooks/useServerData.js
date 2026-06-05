@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+const ADMIN_STORAGE_KEY = 'vm2026_admin_password';
+
 async function parseApiResponse(res) {
   const raw = await res.text();
   try {
@@ -28,9 +30,25 @@ export default function useServerData() {
   const [serverData, setServerData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState(null);
-  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPassword, setAdminPassword] = useState(() => {
+    try {
+      return localStorage.getItem(ADMIN_STORAGE_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
   const pollRef = useRef(null);
   const isAdmin = !!adminPassword;
+
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key !== ADMIN_STORAGE_KEY) return;
+      setAdminPassword(event.newValue || '');
+    };
+
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -100,6 +118,9 @@ export default function useServerData() {
       const parsed = await parseApiResponse(res);
       if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
       setAdminPassword(password);
+      try {
+        localStorage.setItem(ADMIN_STORAGE_KEY, password);
+      } catch {}
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message };
@@ -110,6 +131,9 @@ export default function useServerData() {
 
   const adminLogout = useCallback(() => {
     setAdminPassword('');
+    try {
+      localStorage.removeItem(ADMIN_STORAGE_KEY);
+    } catch {}
   }, []);
 
   const adminDeleteOne = useCallback(async (name, password) => {
