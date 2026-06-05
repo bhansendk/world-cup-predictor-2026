@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { calcScore, calcSimpleScore } from '../../lib/scoring.js';
 import { FUN_QUESTIONS, GROUPS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../../data/wc2026.js';
 
-// VM 2026 kickoff: 11. juni 2026 kl. 21:00 CEST = 19:00 UTC
-const REVEAL_DATE = new Date('2026-06-11T19:00:00Z');
+// Reveal: 1. juni 2026 kl. 21:00 CEST = 19:00 UTC
+const REVEAL_DATE = new Date('2026-06-01T19:00:00Z');
 const SIMPLE_FIELDS = [
   { key: 'top1', label: 'Mester' },
   { key: 'top2', label: 'Runner-up' },
@@ -84,41 +84,80 @@ function formatCountdown(ms) {
   return `${d}d ${String(h).padStart(2,'0')}t ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`;
 }
 
-function simplePredictionLines(prediction) {
-  if (!prediction) return [];
-  return [
-    `Mester: ${prediction.top1 || '-'}`,
-    `Runner-up: ${prediction.top2 || '-'}`,
-    `Nr. 3: ${prediction.top3 || '-'}`,
-    `Nr. 4: ${prediction.top4 || '-'}`,
-    `Topscorer: ${prediction.topscorer || '-'}`,
-    `Gyldne Bold: ${prediction.golden_ball || '-'}`,
-    `Flest gule kort: ${prediction.most_yellow || '-'}`,
-    `Flest mål (hold): ${prediction.most_goals_team || '-'}`
-  ];
+function compactList(value) {
+  if (Array.isArray(value)) {
+    return value.length ? value.join(', ') : '-';
+  }
+  return value || '-';
 }
 
-function advancedPredictionLines(prediction) {
-  if (!prediction) return [];
-  const groups = Object.keys(GROUPS).map(k => {
-    const g = prediction?.g?.[k] || {};
-    return `${k}: 1) ${g.p1 || '-'} 2) ${g.p2 || '-'} 3) ${g.p3 || '-'}`;
-  });
+function PredictionCompact({ prediction, mode }) {
+  if (!prediction) return null;
 
-  const lines = [
-    `Bedste 3'ere: ${(prediction.third || []).join(', ') || '-'}`,
-    `R32 vindere: ${Object.values(prediction?.bracket?.r32 || {}).filter(Boolean).join(', ') || '-'}`,
-    `R16 vindere: ${Object.values(prediction?.bracket?.r16 || {}).filter(Boolean).join(', ') || '-'}`,
-    `KF vindere: ${Object.values(prediction?.bracket?.qf || {}).filter(Boolean).join(', ') || '-'}`,
-    `SF vindere: ${Object.values(prediction?.bracket?.sf || {}).filter(Boolean).join(', ') || '-'}`,
-    `Mester: ${prediction?.bracket?.final?.fin || '-'}`,
-    `Bronzevinder: ${prediction?.bracket?.bronze?.bronze_w || '-'}`,
-    '',
-    'Grupper:',
-    ...groups
-  ];
+  if (mode === 'simple') {
+    return (
+      <div className="pred-compact">
+        <div className="pred-compact-title">⚡ Hurtig forudsigelse</div>
+        <div className="pred-grid">
+          {SIMPLE_FIELDS.map(f => (
+            <div key={f.key} className="pred-item">
+              <div className="pred-item-label">{f.label}</div>
+              <div className="pred-item-value">{compactList(prediction?.[f.key])}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  return lines;
+  const g = prediction?.g || {};
+  const bracket = prediction?.bracket || {};
+  const fun = prediction?.fun || {};
+  const funAnswered = FUN_QUESTIONS.filter(q => isFilled(fun[q.id])).length;
+  const groupKeys = Object.keys(GROUPS);
+
+  return (
+    <div className="pred-compact">
+      <div className="pred-compact-title">⭐ Fodboldinteresseret forudsigelse</div>
+
+      <div className="pred-grid pred-grid-wide">
+        <div className="pred-item">
+          <div className="pred-item-label">Topplaceringer</div>
+          <div className="pred-item-value">
+            Mester: {compactList(bracket?.final?.fin)} | Bronze: {compactList(bracket?.bronze?.bronze_w)}
+          </div>
+        </div>
+        <div className="pred-item">
+          <div className="pred-item-label">Bedste 3'ere</div>
+          <div className="pred-item-value">{compactList(prediction?.third)}</div>
+        </div>
+        <div className="pred-item">
+          <div className="pred-item-label">Bracket-vindere</div>
+          <div className="pred-item-value">
+            R32 {Object.values(bracket?.r32 || {}).filter(Boolean).length}/16, R16 {Object.values(bracket?.r16 || {}).filter(Boolean).length}/8, KF {Object.values(bracket?.qf || {}).filter(Boolean).length}/4, SF {Object.values(bracket?.sf || {}).filter(Boolean).length}/2
+          </div>
+        </div>
+        <div className="pred-item">
+          <div className="pred-item-label">Sjove tips</div>
+          <div className="pred-item-value">{funAnswered}/{FUN_QUESTIONS.length} besvaret</div>
+        </div>
+      </div>
+
+      <div className="pred-group-grid">
+        {groupKeys.map(key => {
+          const group = g[key] || {};
+          return (
+            <div key={key} className="pred-group-card">
+              <div className="pred-group-title">{key}</div>
+              <div className="pred-group-line">1) {compactList(group.p1)}</div>
+              <div className="pred-group-line">2) {compactList(group.p2)}</div>
+              <div className="pred-group-line">3) {compactList(group.p3)}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function ScoreRow({ colleague, AR, rank, isOwn, showPrediction }) {
@@ -136,7 +175,6 @@ function ScoreRow({ colleague, AR, rank, isOwn, showPrediction }) {
   }
 
   const medals = ['🥇','🥈','🥉'];
-  const predictionLines = isSimple ? simplePredictionLines(prediction) : advancedPredictionLines(prediction);
 
   return (
     <div
@@ -153,7 +191,9 @@ function ScoreRow({ colleague, AR, rank, isOwn, showPrediction }) {
         </div>
       )}
       {open && showPrediction && prediction && (
-        <pre className="lb-prediction" onClick={e => e.stopPropagation()}>{predictionLines.join('\n')}</pre>
+        <div className="lb-prediction" onClick={e => e.stopPropagation()}>
+          <PredictionCompact prediction={prediction} mode={mode} />
+        </div>
       )}
     </div>
   );
@@ -165,6 +205,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   const [mode, setMode] = useState('advanced');
   const [adminPw, setAdminPw] = useState('');
   const [adminStatus, setAdminStatus] = useState('');
+  const [leaderboardView, setLeaderboardView] = useState('all');
   const countdown = useCountdown(REVEAL_DATE.getTime());
 
   const colleagues = serverData?.colleagues || [];
@@ -228,6 +269,15 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
       })
     : colleagues;
 
+  const filteredColleagues = useMemo(() => {
+    if (leaderboardView === 'simple') return sorted.filter(c => c.mode === 'simple');
+    if (leaderboardView === 'advanced') return sorted.filter(c => c.mode !== 'simple');
+    return sorted;
+  }, [leaderboardView, sorted]);
+
+  const advancedCount = colleagues.filter(c => c.mode !== 'simple').length;
+  const simpleCount = colleagues.filter(c => c.mode === 'simple').length;
+
   const countdownStr = formatCountdown(countdown);
 
   return (
@@ -242,7 +292,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
           <div className="reveal-icon">🔒</div>
           <div>
             <strong>Forudsigelserne afsløres når VM starter</strong>
-            <div className="reveal-date">11. juni 2026 kl. 21:00 dansk tid</div>
+            <div className="reveal-date">1. juni 2026 kl. 21:00 dansk tid</div>
             <div className="reveal-countdown">{countdownStr}</div>
           </div>
         </div>
@@ -267,7 +317,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
           </button>
           <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil</button>
         </div>
-        {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 11. juni 2026 kl. 21:00 dansk tid.</p>}
+        {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 1. juni 2026 kl. 21:00 dansk tid.</p>}
         {!registrationClosed && !modeComplete && (
           <p className="info-txt">
             {mode === 'simple'
@@ -301,9 +351,33 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
       <div className="section-card">
         <h3>🏆 {(revealed || isAdmin) ? 'Stilling' : 'Deltagere'} ({colleagues.length})</h3>
 
+        <div className="lb-view-switch">
+          <button
+            className={`lb-view-btn ${leaderboardView === 'all' ? 'active' : ''}`}
+            onClick={() => setLeaderboardView('all')}
+            type="button"
+          >
+            Samlet ({colleagues.length})
+          </button>
+          <button
+            className={`lb-view-btn ${leaderboardView === 'advanced' ? 'active' : ''}`}
+            onClick={() => setLeaderboardView('advanced')}
+            type="button"
+          >
+            ⭐ Avanceret ({advancedCount})
+          </button>
+          <button
+            className={`lb-view-btn ${leaderboardView === 'simple' ? 'active' : ''}`}
+            onClick={() => setLeaderboardView('simple')}
+            type="button"
+          >
+            ⚡ Simpel ({simpleCount})
+          </button>
+        </div>
+
         {!revealed && !isAdmin && (
           <p className="info-txt" style={{marginBottom:12}}>
-            👤 Du kan kun se din egen forudsigelse indtil VM starter. Alle forudsigelser afsløres 11. juni kl. 21:00.
+            👤 Du kan kun se din egen forudsigelse indtil reveal. Alle forudsigelser afsløres 1. juni kl. 21:00.
           </p>
         )}
 
@@ -312,7 +386,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
         )}
 
         <div className="lb-list">
-          {sorted.map((c, i) => {
+          {filteredColleagues.map((c, i) => {
             const isOwn = myName && c.name.toLowerCase() === myName.toLowerCase();
             if (!revealed && !isAdmin && !isOwn) {
               // Show name + mode + submitted, but no prediction/score
@@ -336,7 +410,7 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
               />
             );
           })}
-          {colleagues.length === 0 && <p className="info-txt">Ingen forudsigelser endnu.</p>}
+          {filteredColleagues.length === 0 && <p className="info-txt">Ingen forudsigelser i denne visning endnu.</p>}
         </div>
       </div>
     </div>
