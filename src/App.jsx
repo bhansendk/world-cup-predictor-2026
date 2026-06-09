@@ -1,23 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import useLocalState from './hooks/useLocalState.js';
 import useServerData from './hooks/useServerData.js';
-
-const VM_KICKOFF = new Date('2026-06-11T19:00:00Z'); // 11. juni 2026 kl. 21:00 CEST
-
-function useCountdownStr(target) {
-  const [diff, setDiff] = useState(() => target - Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setDiff(target - Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [target]);
-  if (diff <= 0) return null;
-  const s = Math.floor(diff / 1000);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  return `${d}d ${String(h).padStart(2,'0')}t ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`;
-}
 import ModeSelector from './components/ModeSelector.jsx';
 import ModeIntro from './components/ModeIntro.jsx';
 import SimpleMode from './components/SimpleMode.jsx';
@@ -28,7 +11,6 @@ import { extractSimpleFromAdvanced } from './lib/scoring.js';
 export default function App() {
   const local = useLocalState();
   const server = useServerData();
-  const countdownStr = useCountdownStr(VM_KICKOFF.getTime());
   const [showWarn, setShowWarn] = useState(false);
   const [pendingSimpleChange, setPendingSimpleChange] = useState(null);
   const [showModeIntro, setShowModeIntro] = useState(false);
@@ -98,13 +80,7 @@ export default function App() {
     <div className="app-root">
       <header className="app-header">
         <span className="app-logo">⚽</span>
-        <h1>VM 2026 – Tirsdagsklubben</h1>
-        {countdownStr && (
-          <div className="app-countdown">
-            <span className="app-countdown-label">⏳ VM starter om:</span>
-            <span className="app-countdown-timer">{countdownStr}</span>
-          </div>
-        )}
+        <h1>VM 2026 – Forudsigelseskonkurrence</h1>
         <button className="btn-ghost btn-sm" onClick={() => setMode(null)}>
           Skift mode
         </button>
