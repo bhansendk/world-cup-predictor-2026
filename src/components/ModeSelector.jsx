@@ -4,7 +4,7 @@ export default function ModeSelector({ onSelect }) {
       <div className="mode-hero">
         <div className="mode-hero-icon">⚽</div>
         <h1>VM 2026 Forudsigelse</h1>
-        <p>Generel turnering</p>
+        <p>Tirsdagsklubben</p>
         <p className="mode-compare">
           Hurtig mode er den korte version med top 4 og få svar. Fodboldinteresseret er den fulde version med grupper,
           bracket og alle sjove tips.

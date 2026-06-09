@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const LS_KEY = 'vm2026_general';
-const LS_MYNAME_KEY = 'vm2026_general_myname';
+const LS_KEY = 'vm2026_tirsdagsklubben';
+const LS_MYNAME_KEY = 'vm2026_tirsdagsklubben_myname';
 
 const EMPTY_S = { g: {}, third: [], r32: {}, r16: {}, qf: {}, sf: {}, final: {}, bronze: {} };
 const EMPTY_SIMPLE = {

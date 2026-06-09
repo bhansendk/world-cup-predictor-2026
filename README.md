@@ -1,4 +1,4 @@
-# ⚽ VM 2026 Forudsigelse – Generel
+# ⚽ VM 2026 Forudsigelse – Tirsdagsklubben
 
 En React/Vite-webapp til at forudsige VM 2026 i herrefodbold. Alle forudsigelser gemmes centralt via Vercel Blob, så alle kan se stillingen i realtid.
 
@@ -20,7 +20,7 @@ Download fra [nodejs.org](https://nodejs.org) (LTS-version anbefales).
 
 ### 2. Klon/åbn projektet og installér afhængigheder
 ```bash
-cd world-cup-predictor-2026-general
+cd vm2026-tirsdagsklubben
 npm install
 ```
 
@@ -38,7 +38,7 @@ npm run dev
 ```bash
 git init
 git add .
-git commit -m "feat: initial commit - VM 2026 generel"
+git commit -m "Initial commit – VM 2026 Tirsdagsklubben"
 ```
 - Gå til [github.com/new](https://github.com/new) og opret et nyt **privat** repo
 - Følg GitHub-instruktionerne for at push til det nye repo
@@ -77,7 +77,7 @@ Efter tilføjelse af env vars: **Deployments → Redeploy** (eller push en ny co
 
 ## 👥 Brug for deltagere
 
-1. Del linket til siden (f.eks. `https://vm2026-general.vercel.app`)
+1. Del linket til siden (f.eks. `https://vm2026-tirsdagsklubben.vercel.app`)
 2. Vælg mode, udfyld forudsigelsen
 3. Gå til **📊 Stilling** og indsend med dit navn
 4. Se stillingen opdatere automatisk!
@@ -87,7 +87,7 @@ Efter tilføjelse af env vars: **Deployments → Redeploy** (eller push en ny co
 ## 🏗️ Teknisk arkitektur
 
 ```
-world-cup-predictor-2026-general/
+vm2026-tirsdagsklubben/
 ├── api/
 │   └── data.js          # Vercel serverless API (CRUD via Vercel Blob)
 ├── src/
