@@ -69,24 +69,67 @@ export default function useServerData() {
     return () => clearInterval(pollRef.current);
   }, [fetchData]);
 
-  const submitPrediction = useCallback(async (name, mode, prediction) => {
+  const submitPrediction = useCallback(async (name, mode, prediction, editCode = '', adminPassword = '', newEditCode = '') => {
     setLoading(true);
     try {
       const res = await fetch('/api/data?action=submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mode, prediction })
+        body: JSON.stringify({ name, mode, prediction, editCode, adminPassword, newEditCode })
       });
       const parsed = await parseApiResponse(res);
       if (!parsed.ok) throw new Error(buildApiError(parsed, 'Fejl ved indsendelse'));
       await fetchData();
-      return { ok: true };
+      return {
+        ok: true,
+        editCode: parsed?.data?.editCode || '',
+        codeGenerated: !!parsed?.data?.codeGenerated,
+        codeChanged: !!parsed?.data?.codeChanged
+      };
     } catch (e) {
       return { ok: false, error: e.message };
     } finally {
       setLoading(false);
     }
   }, [fetchData]);
+
+  const autosavePrediction = useCallback(async (name, mode, prediction, editCode = '', adminPassword = '', newEditCode = '') => {
+    try {
+      const res = await fetch('/api/data?action=autosave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, mode, prediction, editCode, adminPassword, newEditCode })
+      });
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Autosave fejlede'));
+      return {
+        ok: true,
+        editCode: parsed?.data?.editCode || '',
+        codeGenerated: !!parsed?.data?.codeGenerated,
+        codeChanged: !!parsed?.data?.codeChanged
+      };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }, []);
+
+  const fetchMyPrediction = useCallback(async (name, editCode) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/data?action=mine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, editCode })
+      });
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Kunne ikke hente forudsigelse'));
+      return { ok: true, entry: parsed?.data?.entry || null };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const adminUpdateResults = useCallback(async (results, password) => {
     setLoading(true);
@@ -98,6 +141,25 @@ export default function useServerData() {
       });
       const parsed = await parseApiResponse(res);
       if (!parsed.ok) throw new Error(buildApiError(parsed, 'Forkert kode'));
+      await fetchData();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchData]);
+
+  const adminImportPrediction = useCallback(async (name, mode, prediction, password) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/data?action=adminImport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, mode, prediction, password })
+      });
+      const parsed = await parseApiResponse(res);
+      if (!parsed.ok) throw new Error(buildApiError(parsed, 'Import fejlede'));
       await fetchData();
       return { ok: true };
     } catch (e) {
@@ -175,7 +237,8 @@ export default function useServerData() {
 
   return {
     serverData, loading, error, fetchData,
-    submitPrediction, adminUpdateResults, adminDeleteOne, adminClearAll, adminVerifyPassword,
-    adminLogout, isAdmin
+    submitPrediction, autosavePrediction, fetchMyPrediction,
+    adminUpdateResults, adminImportPrediction, adminDeleteOne, adminClearAll, adminVerifyPassword,
+    adminLogout, isAdmin, adminPassword
   };
 }

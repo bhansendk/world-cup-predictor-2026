@@ -28,7 +28,9 @@ export default function AdvancedMode(props) {
   });
   const { S, FUN, SIMPLE, updateGroup, setThird, onBracketPick, updateFun, updateSimple,
       serverData, onSubmit, adminUpdate, adminVerify, adminDelete, adminClearAll, loading,
-        fetchData, onReset, setS, setFUN, setSIMPLE, myName, setMyName, isAdmin, adminLogout } = props;
+        fetchData, onReset, onResetGroups, onResetThird, onResetBracket, onResetFun,
+        setS, setFUN, setSIMPLE, myName, setMyName, myEditCode, setMyEditCode,
+        onLoadMine, isAdmin, adminLogout, adminPassword } = props;
 
   const randomPick = (arr) => arr[Math.floor(Math.random() * arr.length)] || null;
 
@@ -141,22 +143,25 @@ export default function AdvancedMode(props) {
       </div>
 
       {tab === 'groups' && (
-        <GroupsTab S={S} updateGroup={updateGroup} onRandomFillAll={fillAllRandomAdvanced} onResetAll={onReset} />
+        <GroupsTab S={S} updateGroup={updateGroup} onRandomFillAll={fillAllRandomAdvanced} onResetGroups={onResetGroups} onResetAll={onReset} />
       )}
       {tab === 'third' && (
-        <ThirdTab S={S} setThird={setThird} />
+        <ThirdTab S={S} setThird={setThird} onResetThird={onResetThird} />
       )}
       {tab === 'bracket' && (
-        <BracketTab S={S} onPick={onBracketPick} SIMPLE={SIMPLE} updateSimple={updateSimple} />
+        <BracketTab S={S} onPick={onBracketPick} SIMPLE={SIMPLE} updateSimple={updateSimple} onResetBracket={onResetBracket} />
       )}
       {tab === 'fun' && (
-        <FunTipsTab FUN={FUN} SIMPLE={SIMPLE} updateFun={updateFun} updateSimple={updateSimple} />
+        <FunTipsTab FUN={FUN} SIMPLE={SIMPLE} updateFun={updateFun} updateSimple={updateSimple} onResetFun={onResetFun} onResetAll={onReset} />
       )}
       {tab === 'ranking' && (
         <KonkurrenceTab
           S={S} FUN={FUN} SIMPLE={SIMPLE}
           serverData={serverData} onSubmit={onSubmit} loading={loading}
           onReset={onReset} myName={myName} setMyName={setMyName}
+          myEditCode={myEditCode}
+          setMyEditCode={setMyEditCode}
+          onLoadMine={onLoadMine}
           adminVerify={adminVerify}
           adminLogout={adminLogout}
           isAdmin={isAdmin}
@@ -167,6 +172,9 @@ export default function AdvancedMode(props) {
           serverData={serverData}
           adminUpdate={adminUpdate}
           adminVerify={adminVerify}
+          adminLogout={adminLogout}
+          isAdmin={isAdmin}
+          adminPassword={adminPassword}
           adminDelete={adminDelete}
           adminClearAll={adminClearAll}
           loading={loading}

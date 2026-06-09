@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import useLocalState from './hooks/useLocalState.js';
 import useServerData from './hooks/useServerData.js';
 
@@ -25,6 +25,11 @@ import AdvancedMode from './components/AdvancedMode.jsx';
 import WinnerBanner from './components/WinnerBanner.jsx';
 import { extractSimpleFromAdvanced } from './lib/scoring.js';
 
+const GROUP_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+const SIMPLE_TOP4_KEYS = ['top1', 'top2', 'top3', 'top4'];
+const SHARED_FUN_KEYS = ['topscorer', 'golden_ball', 'most_yellow', 'most_goals_team'];
+const DEFAULT_EDIT_CODE = '123456';
+
 export default function App() {
   const local = useLocalState();
   const server = useServerData();
@@ -32,9 +37,24 @@ export default function App() {
   const [showWarn, setShowWarn] = useState(false);
   const [pendingSimpleChange, setPendingSimpleChange] = useState(null);
   const [showModeIntro, setShowModeIntro] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authName, setAuthName] = useState('');
+  const [authCode, setAuthCode] = useState(DEFAULT_EDIT_CODE);
+  const [authStatus, setAuthStatus] = useState('');
+  const autosaveTimerRef = useRef(null);
+  const autosaveSnapshotRef = useRef('');
 
   const { mode, setMode, S, FUN, SIMPLE, myName, setMyName, updateGroup, setThird, updateBracketRound,
-          updateFun, updateSimple, resetAll, setS, setFUN, setSIMPLE } = local;
+      updateFun, updateSimple, resetAll, loadFromObject,
+      setS, setFUN, setSIMPLE, myEditCode, setMyEditCode } = local;
+
+  useEffect(() => {
+    setAuthName(myName || '');
+  }, [myName]);
+
+  useEffect(() => {
+    setAuthCode(myEditCode || DEFAULT_EDIT_CODE);
+  }, [myEditCode]);
 
   // Sync bracket → simple
   const syncBracketToSimple = useCallback((newS) => {
@@ -78,6 +98,244 @@ export default function App() {
     setPendingSimpleChange(null);
   }, [pendingSimpleChange, updateSimple, setS]);
 
+  const resetGroupsOnly = useCallback(() => {
+    setS(prev => ({
+      ...prev,
+      g: {},
+      third: [],
+      r32: {},
+      r16: {},
+      qf: {},
+      sf: {},
+      final: {},
+      bronze: {}
+    }));
+    SIMPLE_TOP4_KEYS.forEach(k => updateSimple(k, null));
+  }, [setS, updateSimple]);
+
+  const resetThirdOnly = useCallback(() => {
+    setS(prev => ({
+      ...prev,
+      third: [],
+      r32: {},
+      r16: {},
+      qf: {},
+      sf: {},
+      final: {},
+      bronze: {}
+    }));
+    SIMPLE_TOP4_KEYS.forEach(k => updateSimple(k, null));
+  }, [setS, updateSimple]);
+
+  const resetBracketOnly = useCallback(() => {
+    setS(prev => {
+      const next = {
+        ...prev,
+        r32: {},
+        r16: {},
+        qf: {},
+        sf: {},
+        final: {},
+        bronze: {}
+      };
+      setTimeout(() => syncBracketToSimple(next), 0);
+      return next;
+    });
+  }, [setS, syncBracketToSimple]);
+
+  const resetFunOnly = useCallback(() => {
+    SHARED_FUN_KEYS.forEach(k => updateSimple(k, null));
+    setFUN(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => {
+        next[k] = null;
+      });
+      return next;
+    });
+  }, [setFUN, updateSimple]);
+
+  const resetSimpleTop4Only = useCallback(() => {
+    SIMPLE_TOP4_KEYS.forEach(k => updateSimple(k, null));
+  }, [updateSimple]);
+
+  const resetSimpleFunOnly = useCallback(() => {
+    SHARED_FUN_KEYS.forEach(k => updateSimple(k, null));
+  }, [updateSimple]);
+
+  const loadMyPrediction = useCallback(async (name, editCode) => {
+    const res = await server.fetchMyPrediction(name, editCode);
+    if (!res.ok) return res;
+
+    const entry = res.entry;
+    if (!entry || !entry.mode || !entry.prediction) {
+      return { ok: false, error: 'Kunne ikke laese forudsigelsen fra serveren' };
+    }
+
+    if (entry.mode === 'simple') {
+      loadFromObject({
+        mode: 'simple',
+        SIMPLE: entry.prediction
+      });
+    } else {
+      const bracket = entry.prediction?.bracket || {};
+      const nextS = {
+        g: entry.prediction?.g || {},
+        third: entry.prediction?.third || [],
+        r32: bracket.r32 || {},
+        r16: bracket.r16 || {},
+        qf: bracket.qf || {},
+        sf: bracket.sf || {},
+        final: bracket.final || {},
+        bronze: bracket.bronze || {}
+      };
+      const nextFUN = entry.prediction?.fun || {};
+      loadFromObject({
+        mode: 'advanced',
+        S: nextS,
+        FUN: nextFUN,
+        SIMPLE: extractSimpleFromAdvanced(nextS, nextFUN)
+      });
+    }
+
+    setMyName(entry.name || name.trim());
+    setMyEditCode(editCode.trim().toUpperCase());
+    setIsAuthenticated(true);
+    return { ok: true, mode: entry.mode };
+  }, [loadFromObject, server, setMyName, setMyEditCode]);
+
+  const handleInitialLogin = useCallback(async () => {
+    const name = authName.trim();
+    const code = (authCode || DEFAULT_EDIT_CODE).trim().toUpperCase();
+    if (!name) {
+      setAuthStatus('❌ Skriv dit navn');
+      return;
+    }
+
+    const res = await loadMyPrediction(name, code);
+    if (res.ok) {
+      setAuthStatus('✅ Logget ind og tidligere bud hentet');
+      return;
+    }
+
+    if (res.error?.includes('Ingen forudsigelse fundet')) {
+      setMyName(name);
+      setMyEditCode(code);
+      resetAll();
+      setMode(null);
+      setShowModeIntro(false);
+      setIsAuthenticated(true);
+      setAuthStatus('✅ Ny bruger oprettet. Vælg mode og lav dit bud.');
+      return;
+    }
+
+    setAuthStatus('❌ ' + res.error);
+  }, [authName, authCode, loadMyPrediction, resetAll, setMode, setMyEditCode, setMyName]);
+
+  const handleSwitchUser = useCallback(() => {
+    setIsAuthenticated(false);
+    setShowModeIntro(false);
+    setMode(null);
+    setAuthStatus('');
+    setAuthName('');
+    setAuthCode(DEFAULT_EDIT_CODE);
+  }, [setMode]);
+
+  useEffect(() => {
+    if (!isAuthenticated || server.isAdmin || !mode || !myName?.trim()) return;
+
+    const code = (myEditCode || '123456').trim().toUpperCase();
+    const prediction = mode === 'simple'
+      ? SIMPLE
+      : {
+          g: S.g,
+          third: S.third,
+          bracket: {
+            r32: S.r32,
+            r16: S.r16,
+            qf: S.qf,
+            sf: S.sf,
+            final: S.final,
+            bronze: S.bronze
+          },
+          fun: FUN
+        };
+
+    const snapshot = JSON.stringify({ name: myName.trim(), mode, code, prediction, isAdmin: server.isAdmin });
+    if (snapshot === autosaveSnapshotRef.current) return;
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(async () => {
+      const res = await server.autosavePrediction(
+        myName.trim(),
+        mode,
+        prediction,
+        code,
+        server.isAdmin ? server.adminPassword : ''
+      );
+      if (res.ok) {
+        autosaveSnapshotRef.current = snapshot;
+        if (res.editCode && res.editCode !== myEditCode) {
+          setMyEditCode(res.editCode);
+        }
+      }
+    }, 1200);
+
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [
+    isAuthenticated,
+    mode,
+    S,
+    FUN,
+    SIMPLE,
+    myName,
+    myEditCode,
+    server.isAdmin,
+    server.adminPassword,
+    server.autosavePrediction,
+    setMyEditCode
+  ]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="app-root login-gate-wrap">
+        <div className="section-card login-gate-card">
+          <h2>🔐 Log ind for at starte</h2>
+          <p className="info-txt">Indtast navn og kode. Hvis du allerede har givet et bud, er din kode 123456 (medmindre du selv har ændret den).</p>
+          <div className="submit-panel">
+            <div className="submit-panel-grid single-column-submit">
+              <div className="submit-panel-block">
+                <div className="submit-panel-label">Login</div>
+                <input
+                  type="text"
+                  className="name-input submit-input"
+                  placeholder="Dit navn"
+                  value={authName}
+                  onChange={e => setAuthName(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="name-input submit-input"
+                  placeholder="Kode"
+                  value={authCode}
+                  onChange={e => setAuthCode(e.target.value.toUpperCase())}
+                />
+              </div>
+            </div>
+            <div className="submit-action-row">
+              <button className="btn-primary" onClick={handleInitialLogin} disabled={server.loading}>Log ind</button>
+            </div>
+            <div className="submit-meta-list">
+              <p className="info-txt">Findes dit bud ikke endnu, bliver du oprettet som ny bruger og kan lave et nyt bud.</p>
+            </div>
+            {authStatus && <p className={`status-msg${authStatus.startsWith('❌') ? ' error' : ''}`}>{authStatus}</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!mode) {
     return <ModeSelector onSelect={(m) => { setMode(m); setShowModeIntro(true); }} />;
   }
@@ -108,6 +366,9 @@ export default function App() {
         <button className="btn-ghost btn-sm" onClick={() => setMode(null)}>
           Skift mode
         </button>
+        <button className="btn-ghost btn-sm" onClick={handleSwitchUser}>
+          Skift bruger
+        </button>
       </header>
 
       {champ && <WinnerBanner champ={champ} />}
@@ -136,8 +397,13 @@ export default function App() {
           onSubmit={server.submitPrediction}
           loading={server.loading}
           onReset={resetAll}
+          onResetTop4={resetSimpleTop4Only}
+          onResetFun={resetSimpleFunOnly}
           myName={myName}
           setMyName={setMyName}
+          myEditCode={myEditCode}
+          setMyEditCode={setMyEditCode}
+          onLoadMine={loadMyPrediction}
         />
       ) : (
         <AdvancedMode
@@ -155,16 +421,24 @@ export default function App() {
           adminVerify={server.adminVerifyPassword}
           adminLogout={server.adminLogout}
           isAdmin={server.isAdmin}
+          adminPassword={server.adminPassword}
           adminDelete={server.adminDeleteOne}
           adminClearAll={server.adminClearAll}
           loading={server.loading}
           fetchData={server.fetchData}
           onReset={resetAll}
+          onResetGroups={resetGroupsOnly}
+          onResetThird={resetThirdOnly}
+          onResetBracket={resetBracketOnly}
+          onResetFun={resetFunOnly}
           setS={setS}
           setFUN={setFUN}
           setSIMPLE={setSIMPLE}
           myName={myName}
           setMyName={setMyName}
+          myEditCode={myEditCode}
+          setMyEditCode={setMyEditCode}
+          onLoadMine={loadMyPrediction}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ALL_TEAMS, GROUPS, FUN_QUESTIONS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from '../../data/wc2026.js';
+import { extractSimpleFromAdvanced } from '../../lib/scoring.js';
 import { FlagSpan, TeamSelect } from '../FormFields.jsx';
 import BracketTab from './Bracket.jsx';
 
@@ -26,10 +27,103 @@ function emptyResults() {
   };
 }
 
-function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, loading, colleagues, serverData }) {
+function decodeImportText(rawText) {
+  const input = (rawText || '').trim();
+  if (!input) throw new Error('Tom tekststreng');
+
+  const buildAdvancedPrediction = (payload) => {
+    const bracket = payload?.bracket || {
+      r32: payload?.r32 || {},
+      r16: payload?.r16 || {},
+      qf: payload?.qf || {},
+      sf: payload?.sf || {},
+      final: payload?.final || {},
+      bronze: payload?.bronze || {}
+    };
+
+    return {
+      mode: 'advanced',
+      prediction: {
+        g: payload.g || {},
+        third: Array.isArray(payload.third) ? payload.third : [],
+        bracket,
+        fun: payload.fun || {}
+      }
+    };
+  };
+
+  const tryParsePayload = (payload) => {
+    if (!payload || typeof payload !== 'object') return null;
+
+    if (payload.mode === 'simple' && payload.simple) {
+      return { mode: 'simple', prediction: payload.simple };
+    }
+
+    if (payload.mode === 'simple' && payload.prediction) {
+      return { mode: 'simple', prediction: payload.prediction };
+    }
+
+    if (payload.mode === 'advanced' && payload.g && (payload.bracket || payload.r32 || payload.r16 || payload.qf || payload.sf || payload.final || payload.bronze)) {
+      return buildAdvancedPrediction(payload);
+    }
+
+    if (payload.g && (payload.bracket || payload.r32 || payload.r16 || payload.qf || payload.sf || payload.final || payload.bronze)) {
+      return buildAdvancedPrediction(payload);
+    }
+
+    return null;
+  };
+
+  const tryDecodeCandidate = (candidate) => {
+    if (!candidate) return null;
+
+    try {
+      const json = JSON.parse(candidate);
+      const parsed = tryParsePayload(json);
+      if (parsed) return parsed;
+    } catch {}
+
+    const normalized = candidate.replace(/-/g, '+').replace(/_/g, '/');
+    const padLen = normalized.length % 4;
+    const padded = normalized + (padLen ? '='.repeat(4 - padLen) : '');
+
+    try {
+      const decodedUnicode = decodeURIComponent(escape(atob(padded)));
+      const json = JSON.parse(decodedUnicode);
+      const parsed = tryParsePayload(json);
+      if (parsed) return parsed;
+    } catch {}
+
+    try {
+      const decoded = atob(padded);
+      const json = JSON.parse(decoded);
+      const parsed = tryParsePayload(json);
+      if (parsed) return parsed;
+    } catch {}
+
+    return null;
+  };
+
+  const candidates = [input];
+  const queryMatch = input.match(/[?&]p=([^&]+)/);
+  if (queryMatch?.[1]) candidates.push(decodeURIComponent(queryMatch[1]));
+
+  const tokens = input.match(/[A-Za-z0-9+/_=-]{40,}/g) || [];
+  tokens.forEach(t => candidates.push(t));
+
+  for (const c of candidates) {
+    const result = tryDecodeCandidate(c);
+    if (result) return result;
+  }
+
+  throw new Error('Kunne ikke aflæse import-teksten');
+}
+
+function AdminPanel({ adminUpdate, adminVerify, adminLogout, isAdmin, adminPassword, adminDelete, adminClearAll, onLoadPrediction, loading, colleagues, serverData }) {
   const [pw, setPw] = useState('');
-  const [isAuthed, setIsAuthed] = useState(false);
   const [status, setStatus] = useState('');
+  const [importName, setImportName] = useState('');
+  const [importText, setImportText] = useState('');
   const [resultState, setResultState] = useState(() => ({ ...emptyResults(), ...(serverData?.results || {}) }));
   const [localColleagues, setLocalColleagues] = useState(colleagues || []);
 
@@ -48,36 +142,38 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
     }
     const res = await adminVerify(pw);
     if (res.ok) {
-      setIsAuthed(true);
+      setPw('');
       setStatus('✅ Logget ind som admin');
       return;
     }
-    setIsAuthed(false);
     setStatus('❌ ' + res.error);
   };
 
   const logout = () => {
-    setIsAuthed(false);
+    adminLogout();
+    setPw('');
     setStatus('');
   };
 
+  const activePw = adminPassword || pw;
+
   const handleSaveResults = async () => {
-    if (!isAuthed) {
+    if (!isAdmin) {
       setStatus('❌ Log ind først');
       return;
     }
-    const res = await adminUpdate(resultState, pw);
+    const res = await adminUpdate(resultState, activePw);
     if (res.ok) setStatus('✅ Resultater gemt!');
     else setStatus('❌ ' + res.error);
   };
 
   const handleDeleteAll = async () => {
-    if (!isAuthed) {
+    if (!isAdmin) {
       setStatus('❌ Log ind først');
       return;
     }
     if (!confirm('Slet alle deltagere?')) return;
-    const res = await adminClearAll(pw);
+    const res = await adminClearAll(activePw);
     if (res.ok) {
       setLocalColleagues([]);
       setStatus('✅ Alle slettet');
@@ -86,16 +182,41 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
   };
 
   const handleDeleteOne = async (name) => {
-    if (!isAuthed) {
+    if (!isAdmin) {
       setStatus('❌ Log ind først');
       return;
     }
-    const res = await adminDelete(name, pw);
+    const res = await adminDelete(name, activePw);
     if (res.ok) {
       setLocalColleagues(prev => prev.filter(c => c.name !== name));
       setStatus(`✅ ${name} slettet`);
     }
     else setStatus('❌ ' + res.error);
+  };
+
+  const handleImportText = async () => {
+    if (!isAdmin) {
+      setStatus('❌ Log ind først');
+      return;
+    }
+    if (!importName.trim()) {
+      setStatus('❌ Indtast navn på kollega');
+      return;
+    }
+    if (!importText.trim()) {
+      setStatus('❌ Indsæt tekststreng til import');
+      return;
+    }
+
+    try {
+      const parsed = decodeImportText(importText);
+      onLoadPrediction(parsed, importName.trim());
+      setImportName('');
+      setImportText('');
+      setStatus(`✅ Forudsigelse indlæst for ${parsed.mode === 'simple' ? 'Hurtig' : 'Fodboldinteresseret'}. Du kan nu rette i fanerne.`);
+    } catch (e) {
+      setStatus('❌ ' + e.message);
+    }
   };
 
   const setGroupResult = (gKey, field, team) => {
@@ -151,7 +272,7 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
           onChange={e => setPw(e.target.value)}
           className="name-input"
         />
-        {!isAuthed ? (
+        {!isAdmin ? (
           <button className="btn-accent" onClick={handleLogin} disabled={loading}>🔐 Log ind</button>
         ) : (
           <button className="btn-ghost" onClick={logout} disabled={loading}>🔓 Log ud</button>
@@ -159,13 +280,13 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
         {status && <span className="status-msg">{status}</span>}
       </div>
 
-      {!isAuthed && (
+      {!isAdmin && (
         <div className="info-card" style={{ marginBottom: 16 }}>
           <p>Log ind som admin for at redigere resultater, bracket og deltagere.</p>
         </div>
       )}
 
-      {isAuthed && (
+      {isAdmin && (
         <>
 
       <div className="section-card">
@@ -179,6 +300,32 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
           ))}
         </div>
         <button className="btn-danger btn-sm" onClick={handleDeleteAll}>🗑️ Slet alle</button>
+      </div>
+
+      <div className="section-card">
+        <h3>📥 Importér kollegas tekststreng</h3>
+        <p style={{ color: '#94a3b8', marginBottom: 10 }}>
+          Indsæt den lange tekststreng fra "Kopier som tekst (til import)" fra en kollega.
+        </p>
+        <div className="submit-row" style={{ marginBottom: 8 }}>
+          <input
+            type="text"
+            className="name-input"
+            placeholder="Kollegaens navn"
+            value={importName}
+            onChange={e => setImportName(e.target.value)}
+          />
+        </div>
+        <textarea
+          className="name-input"
+          style={{ minHeight: 120, resize: 'vertical' }}
+          placeholder="Indsæt tekststreng her..."
+          value={importText}
+          onChange={e => setImportText(e.target.value)}
+        />
+        <div className="submit-row">
+          <button className="btn-accent" onClick={handleImportText} disabled={loading}>📝 Indlæs til redigering</button>
+        </div>
       </div>
 
       <div className="section-card">
@@ -293,9 +440,45 @@ function AdminPanel({ adminUpdate, adminVerify, adminDelete, adminClearAll, load
   );
 }
 
-export default function ResultaterTab({ serverData, adminUpdate, adminVerify, adminDelete, adminClearAll, loading }) {
+export default function ResultaterTab({ serverData, adminUpdate, adminVerify, adminLogout, isAdmin, adminPassword, adminDelete, adminClearAll, loading, setS, setFUN, setSIMPLE }) {
   const [adminOpen, setAdminOpen] = useState(false);
   const colleagues = serverData?.colleagues || [];
+
+  const handleLoadPrediction = (parsed) => {
+    if (parsed.mode === 'simple') {
+      const simple = parsed.prediction || {};
+      setSIMPLE(prev => ({
+        ...prev,
+        top1: simple.top1 || null,
+        top2: simple.top2 || null,
+        top3: simple.top3 || null,
+        top4: simple.top4 || null,
+        topscorer: simple.topscorer || null,
+        golden_ball: simple.golden_ball || null,
+        most_yellow: simple.most_yellow || null,
+        most_goals_team: simple.most_goals_team || null
+      }));
+      return;
+    }
+
+    const p = parsed.prediction || {};
+    const bracket = p.bracket || {};
+    const nextS = {
+      g: p.g || {},
+      third: Array.isArray(p.third) ? p.third : [],
+      r32: bracket.r32 || {},
+      r16: bracket.r16 || {},
+      qf: bracket.qf || {},
+      sf: bracket.sf || {},
+      final: bracket.final || {},
+      bronze: bracket.bronze || {}
+    };
+    const nextFun = p.fun || {};
+
+    setS(nextS);
+    setFUN(nextFun);
+    setSIMPLE(prev => ({ ...prev, ...extractSimpleFromAdvanced(nextS, nextFun) }));
+  };
 
   return (
     <div className="tab-content">
@@ -310,8 +493,12 @@ export default function ResultaterTab({ serverData, adminUpdate, adminVerify, ad
         <AdminPanel
           adminUpdate={adminUpdate}
           adminVerify={adminVerify}
+          adminLogout={adminLogout}
+          isAdmin={isAdmin}
+          adminPassword={adminPassword}
           adminDelete={adminDelete}
           adminClearAll={adminClearAll}
+          onLoadPrediction={handleLoadPrediction}
           loading={loading}
           colleagues={colleagues}
           serverData={serverData}

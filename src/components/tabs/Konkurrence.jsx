@@ -17,6 +17,7 @@ const SIMPLE_FIELDS = [
   { key: 'most_yellow', label: 'Flest gule kort - hold' },
   { key: 'most_goals_team', label: 'Flest mål - hold' }
 ];
+const DEFAULT_EDIT_CODE = '123456';
 
 function isFilled(v) {
   if (typeof v === 'string') return v.trim().length > 0;
@@ -344,8 +345,27 @@ function ScoreRow({ colleague, AR, rank, isOwn, showPrediction, leaderboardView 
   );
 }
 
-export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, loading, onReset, myName, setMyName, adminVerify, adminLogout, isAdmin }) {
+export default function KonkurrenceTab({
+  S,
+  FUN,
+  SIMPLE,
+  serverData,
+  onSubmit,
+  loading,
+  onReset,
+  myName,
+  setMyName,
+  myEditCode,
+  setMyEditCode,
+  onLoadMine,
+  adminVerify,
+  adminLogout,
+  isAdmin
+}) {
   const [name, setName] = useState(myName || '');
+  const [editCode, setEditCode] = useState(myEditCode || DEFAULT_EDIT_CODE);
+  const [newEditCode, setNewEditCode] = useState('');
+  const [showCodeChange, setShowCodeChange] = useState(false);
   const [status, setStatus] = useState('');
   const [mode, setMode] = useState('advanced');
   const [adminPw, setAdminPw] = useState('');
@@ -363,6 +383,14 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
   const advancedMissing = getAdvancedMissing(S, FUN);
   const modeComplete = mode === 'simple' ? simpleMissing.length === 0 : advancedMissing.length === 0;
   const canSubmit = !registrationClosed && !loading;
+
+  useEffect(() => {
+    setName(myName || '');
+  }, [myName]);
+
+  useEffect(() => {
+    setEditCode(myEditCode || DEFAULT_EDIT_CODE);
+  }, [myEditCode]);
 
   const handleAdminLogin = async () => {
     if (!adminPw.trim()) {
@@ -383,10 +411,33 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
     setAdminStatus('');
   };
 
+  const handleLoadMine = async () => {
+    if (!name.trim()) {
+      setStatus('Skriv dit navn!');
+      return;
+    }
+    const currentCode = editCode.trim() || DEFAULT_EDIT_CODE;
+    const res = await onLoadMine(name.trim(), currentCode);
+    if (res.ok) {
+      setStatus('✅ Din forudsigelse er hentet.');
+      return;
+    }
+    setStatus('❌ ' + res.error);
+  };
+
+  const handleLoadSaved = async () => {
+    if (!myName) return;
+    const savedCode = myEditCode || DEFAULT_EDIT_CODE;
+    setName(myName);
+    setEditCode(savedCode);
+    const res = await onLoadMine(myName, savedCode);
+    setStatus(res.ok ? '✅ Dit gemte bud er hentet.' : '❌ ' + res.error);
+  };
+
   const handleSubmit = async () => {
     if (registrationClosed) { setStatus('⛔ Tilmelding er lukket. VM er startet.'); return; }
     if (!name.trim()) { setStatus('Skriv dit navn!'); return; }
-    if (!modeComplete) {
+    if (!modeComplete && !isAdmin) {
       setStatus(mode === 'simple'
         ? `⚠️ Mangler i Hurtig mode: ${simpleMissing.join(', ')}`
         : `⚠️ Mangler i Fodboldinteresseret mode: ${advancedMissing.join(' | ')}`);
@@ -395,10 +446,23 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
     const prediction = mode === 'simple'
       ? SIMPLE
       : { g: S.g, third: S.third, bracket: { r32: S.r32, r16: S.r16, qf: S.qf, sf: S.sf, final: S.final, bronze: S.bronze }, fun: FUN };
-    const res = await onSubmit(name.trim(), mode, prediction);
+    const currentCode = editCode.trim() || DEFAULT_EDIT_CODE;
+    const res = await onSubmit(name.trim(), mode, prediction, currentCode, isAdmin ? adminPw.trim() : '', newEditCode.trim());
     if (res.ok) {
       setMyName(name.trim());
-      setStatus('✅ Gemt!');
+      if (res.editCode) {
+        setEditCode(res.editCode);
+        setMyEditCode(res.editCode);
+      }
+      setNewEditCode('');
+      setShowCodeChange(false);
+      if (res.codeChanged && res.editCode) {
+        setStatus(`✅ Gemt! Din redigeringskode er nu: ${res.editCode}.`);
+      } else if (res.codeGenerated && res.editCode) {
+        setStatus(`✅ Gemt! Din redigeringskode er: ${res.editCode}. Gem den, hvis du vil rette senere.`);
+      } else {
+        setStatus('✅ Gemt!');
+      }
     } else {
       setStatus('❌ ' + res.error);
     }
@@ -461,32 +525,78 @@ export default function KonkurrenceTab({ S, FUN, SIMPLE, serverData, onSubmit, l
 
       <div className="section-card">
         <h3>📤 Send din forudsigelse</h3>
-        <div className="submit-row">
-          <input
-            type="text"
-            className="name-input"
-            placeholder="Dit navn"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
-          <select value={mode} onChange={e => setMode(e.target.value)} className="mode-select">
-            <option value="advanced">⭐ Fodboldinteresseret</option>
-            <option value="simple">⚡ Hurtig</option>
-          </select>
-          <button className="btn-primary" onClick={handleSubmit} disabled={!canSubmit}>
-            {loading ? 'Sender…' : registrationClosed ? 'Tilmelding lukket' : 'Send ✈️'}
-          </button>
-          <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil</button>
+        <div className="submit-panel">
+          <div className="submit-panel-grid">
+            <div className="submit-panel-block">
+              <div className="submit-panel-label">Bruger</div>
+              <input
+                type="text"
+                className="name-input submit-input"
+                placeholder="Dit navn"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+              <select value={mode} onChange={e => setMode(e.target.value)} className="mode-select submit-input">
+                <option value="advanced">⭐ Fodboldinteresseret</option>
+                <option value="simple">⚡ Hurtig</option>
+              </select>
+            </div>
+
+            <div className="submit-panel-block">
+              <div className="submit-panel-label">Login og kode</div>
+              <input
+                type="text"
+                className="name-input submit-input"
+                placeholder="Redigeringskode"
+                value={editCode}
+                onChange={e => setEditCode(e.target.value.toUpperCase())}
+              />
+              <div className="smart-login-row">
+                <button className="btn-accent btn-sm" onClick={handleLoadMine} disabled={loading}>Hent mit bud</button>
+                {myName && (
+                  <button className="btn-ghost btn-sm" onClick={handleLoadSaved} disabled={loading}>Brug gemt login</button>
+                )}
+                <button className="btn-ghost btn-sm" onClick={() => setShowCodeChange(v => !v)}>
+                  {showCodeChange ? 'Luk kodevalg' : 'Skift kode'}
+                </button>
+              </div>
+              {showCodeChange && (
+                <input
+                  type="text"
+                  className="name-input submit-input"
+                  placeholder="Ny redigeringskode"
+                  value={newEditCode}
+                  onChange={e => setNewEditCode(e.target.value.toUpperCase())}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="submit-action-row">
+            <button className="btn-primary" onClick={handleSubmit} disabled={!canSubmit}>
+              {loading ? 'Sender…' : registrationClosed ? 'Tilmelding lukket' : 'Send ✈️'}
+            </button>
+            <button className="btn-accent btn-sm" onClick={handleLoadMine} disabled={loading}>🔐 Log ind og hent</button>
+            <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil</button>
+          </div>
+
+          <div className="submit-meta-list">
+            {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 1. juni 2026 kl. 21:00 dansk tid.</p>}
+            <p className="info-txt">Startkode er 123456 for alle. NaAr du er logget ind, autosaves dine aendringer automatisk. Efter 11-06-2026 kl. 21 er aendringer lukket (undtagen admin).</p>
+            {!registrationClosed && !modeComplete && (
+              <p className="info-txt">
+                {mode === 'simple'
+                  ? `Manglende felter: ${simpleMissing.join(', ')}.`
+                  : `Manglende felter: ${advancedMissing.join(' | ')}.`}
+              </p>
+            )}
+            {!registrationClosed && isAdmin && !modeComplete && (
+              <p className="info-txt">🔓 Admin kan indsende selvom ikke alle felter er udfyldt.</p>
+            )}
+          </div>
+
+          {status && <p className={`status-msg${status.startsWith('❌') ? ' error' : ''}`}>{status}</p>}
         </div>
-        {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 1. juni 2026 kl. 21:00 dansk tid.</p>}
-        {!registrationClosed && !modeComplete && (
-          <p className="info-txt">
-            {mode === 'simple'
-              ? `Manglende felter: ${simpleMissing.join(', ')}.`
-              : `Manglende felter: ${advancedMissing.join(' | ')}.`}
-          </p>
-        )}
-        {status && <p className="status-msg">{status}</p>}
       </div>
 
       <div className="section-card">

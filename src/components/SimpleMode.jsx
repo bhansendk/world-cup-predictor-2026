@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TeamSelect, FunQuestionSelect } from './FormFields.jsx';
+
+const DEFAULT_EDIT_CODE = '123456';
 
 const SIMPLE_FIELDS = [
   { key: 'top1', label: 'Mester' },
@@ -17,13 +19,40 @@ function isFilled(v) {
   return v !== null && v !== undefined;
 }
 
-export default function SimpleMode({ SIMPLE, onChange, onFunChange, FUN, serverData, onSubmit, loading, onReset, myName, setMyName }) {
+export default function SimpleMode({
+  SIMPLE,
+  onChange,
+  onFunChange,
+  FUN,
+  serverData,
+  onSubmit,
+  loading,
+  onReset,
+  onResetTop4,
+  onResetFun,
+  myName,
+  setMyName,
+  myEditCode,
+  setMyEditCode,
+  onLoadMine
+}) {
   const [name, setName] = useState(myName || '');
+  const [editCode, setEditCode] = useState(myEditCode || DEFAULT_EDIT_CODE);
+  const [newEditCode, setNewEditCode] = useState('');
+  const [showCodeChange, setShowCodeChange] = useState(false);
   const [status, setStatus] = useState('');
   const revealTs = serverData?.revealDate ? Date.parse(serverData.revealDate) : Date.parse('2026-06-11T19:00:00Z');
   const registrationClosed = Number.isFinite(revealTs) ? Date.now() >= revealTs : false;
   const missingFields = SIMPLE_FIELDS.filter(f => !isFilled(SIMPLE?.[f.key])).map(f => f.label);
   const isComplete = missingFields.length === 0;
+
+  useEffect(() => {
+    setName(myName || '');
+  }, [myName]);
+
+  useEffect(() => {
+    setEditCode(myEditCode || DEFAULT_EDIT_CODE);
+  }, [myEditCode]);
 
   const handleSubmit = async () => {
     if (registrationClosed) { setStatus('⛔ Tilmelding er lukket. VM er startet.'); return; }
@@ -33,12 +62,45 @@ export default function SimpleMode({ SIMPLE, onChange, onFunChange, FUN, serverD
       return;
     }
     const prediction = { ...SIMPLE };
-    const res = await onSubmit(name.trim(), 'simple', prediction);
+    const currentCode = editCode.trim() || DEFAULT_EDIT_CODE;
+    const res = await onSubmit(name.trim(), 'simple', prediction, currentCode, '', newEditCode.trim());
     if (res.ok) {
       setMyName(name.trim());
-      setStatus('✅ Forudsigelse gemt!');
+      if (res.editCode) {
+        setEditCode(res.editCode);
+        setMyEditCode(res.editCode);
+      }
+      setNewEditCode('');
+      setShowCodeChange(false);
+      if (res.codeChanged && res.editCode) {
+        setStatus(`✅ Forudsigelse gemt! Din redigeringskode er nu: ${res.editCode}.`);
+      } else if (res.codeGenerated && res.editCode) {
+        setStatus(`✅ Forudsigelse gemt! Din redigeringskode er: ${res.editCode}. Gem den, hvis du vil rette senere.`);
+      } else {
+        setStatus('✅ Forudsigelse gemt!');
+      }
     }
     else setStatus('❌ Fejl: ' + res.error);
+  };
+
+  const handleLoadMine = async () => {
+    if (!name.trim()) { setStatus('Skriv dit navn først!'); return; }
+    const currentCode = editCode.trim() || DEFAULT_EDIT_CODE;
+    const res = await onLoadMine(name.trim(), currentCode);
+    if (res.ok) {
+      setStatus('✅ Din forudsigelse er hentet.');
+      return;
+    }
+    setStatus('❌ ' + res.error);
+  };
+
+  const handleLoadSaved = async () => {
+    if (!myName) return;
+    const savedCode = myEditCode || DEFAULT_EDIT_CODE;
+    setName(myName);
+    setEditCode(savedCode);
+    const res = await onLoadMine(myName, savedCode);
+    setStatus(res.ok ? '✅ Dit gemte bud er hentet.' : '❌ ' + res.error);
   };
 
   const top4 = [
@@ -92,22 +154,66 @@ export default function SimpleMode({ SIMPLE, onChange, onFunChange, FUN, serverD
 
       <div className="section-card">
         <h2>📤 Send din forudsigelse</h2>
-        <div className="submit-row">
-          <input
-            type="text"
-            className="name-input"
-            placeholder="Dit navn"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading || registrationClosed}>
-            {loading ? 'Sender…' : registrationClosed ? 'Tilmelding lukket' : 'Send forudsigelse ✈️'}
-          </button>
-          <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil alt</button>
+        <div className="submit-panel compact-submit-panel">
+          <div className="submit-panel-grid single-column-submit">
+            <div className="submit-panel-block">
+              <div className="submit-panel-label">Bruger</div>
+              <input
+                type="text"
+                className="name-input submit-input"
+                placeholder="Dit navn"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="submit-panel-block">
+              <div className="submit-panel-label">Login</div>
+              <input
+                type="text"
+                className="name-input submit-input"
+                placeholder="Redigeringskode"
+                value={editCode}
+                onChange={e => setEditCode(e.target.value.toUpperCase())}
+              />
+              <div className="smart-login-row">
+                <button className="btn-accent btn-sm" onClick={handleLoadMine} disabled={loading}>Hent mit bud</button>
+                {myName && (
+                  <button className="btn-ghost btn-sm" onClick={handleLoadSaved} disabled={loading}>Brug gemt login</button>
+                )}
+                <button className="btn-ghost btn-sm" onClick={() => setShowCodeChange(v => !v)}>
+                  {showCodeChange ? 'Luk kodevalg' : 'Skift kode'}
+                </button>
+              </div>
+              {showCodeChange && (
+                <input
+                  type="text"
+                  className="name-input submit-input"
+                  placeholder="Ny redigeringskode"
+                  value={newEditCode}
+                  onChange={e => setNewEditCode(e.target.value.toUpperCase())}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="submit-action-row">
+            <button className="btn-primary" onClick={handleSubmit} disabled={loading || registrationClosed}>
+              {loading ? 'Sender…' : registrationClosed ? 'Tilmelding lukket' : 'Send forudsigelse ✈️'}
+            </button>
+            <button className="btn-ghost btn-sm" onClick={onResetTop4}>🧹 Nulstil top 4</button>
+            <button className="btn-ghost btn-sm" onClick={onResetFun}>🧹 Nulstil sjove tips</button>
+            <button className="btn-ghost btn-sm" onClick={onReset}>🗑️ Nulstil alt</button>
+          </div>
+
+          <div className="submit-meta-list">
+            <p className="info-txt">Startkode er 123456 for alle. NaAr du er logget ind, autosaves dine aendringer automatisk. Efter 11-06-2026 kl. 21 er aendringer lukket (undtagen admin).</p>
+            {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 11. juni 2026 kl. 21:00 dansk tid.</p>}
+            {!registrationClosed && !isComplete && <p className="info-txt">Manglende felter: {missingFields.join(', ')}.</p>}
+          </div>
+
+          {status && <p className={`status-msg${status.startsWith('❌') ? ' error' : ''}`}>{status}</p>}
         </div>
-        {registrationClosed && <p className="info-txt">⛔ Tilmelding er lukket fra 11. juni 2026 kl. 21:00 dansk tid.</p>}
-        {!registrationClosed && !isComplete && <p className="info-txt">Manglende felter: {missingFields.join(', ')}.</p>}
-        {status && <p className="status-msg">{status}</p>}
       </div>
 
       {serverData?.colleagues?.length > 0 && (
