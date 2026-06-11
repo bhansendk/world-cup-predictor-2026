@@ -24,11 +24,47 @@ import SimpleMode from './components/SimpleMode.jsx';
 import AdvancedMode from './components/AdvancedMode.jsx';
 import WinnerBanner from './components/WinnerBanner.jsx';
 import { extractSimpleFromAdvanced } from './lib/scoring.js';
+import { FUN_QUESTIONS, GROUPS, QF_PAIRS, R16_PAIRS, R32, SF_PAIRS } from './data/wc2026.js';
 
 const GROUP_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function normalizeName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function findSimilarName(inputName, existingNames) {
+  const normalized = normalizeName(inputName);
+  for (const existing of existingNames) {
+    const normExisting = normalizeName(existing);
+    if (normExisting === normalized) return null; // exact match, no warning
+    const maxLen = Math.max(normalized.length, normExisting.length);
+    const threshold = maxLen <= 5 ? 1 : maxLen <= 10 ? 2 : 3;
+    if (levenshtein(normalized, normExisting) <= threshold) return existing;
+  }
+  return null;
+}
 const SIMPLE_TOP4_KEYS = ['top1', 'top2', 'top3', 'top4'];
 const SHARED_FUN_KEYS = ['topscorer', 'golden_ball', 'most_yellow', 'most_goals_team'];
 const DEFAULT_EDIT_CODE = '123456';
+
+function isFilled(v) {
+  if (typeof v === 'string') return v.trim().length > 0;
+  return v !== null && v !== undefined;
+}
 
 export default function App() {
   const local = useLocalState();
@@ -41,12 +77,45 @@ export default function App() {
   const [authName, setAuthName] = useState('');
   const [authCode, setAuthCode] = useState(DEFAULT_EDIT_CODE);
   const [authStatus, setAuthStatus] = useState('');
-  const autosaveTimerRef = useRef(null);
+  const [authWarn, setAuthWarn] = useState('');
+  const [pendingLoginArgs, setPendingLoginArgs] = useState(null);
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const saveStatusTimerRef = useRef(null);
   const autosaveSnapshotRef = useRef('');
 
-  const { mode, setMode, S, FUN, SIMPLE, myName, setMyName, updateGroup, setThird, updateBracketRound,
+  const { mode, setMode, S, FUN, SIMPLE, myName, setMyName, updateGroup, setThird,
       updateFun, updateSimple, resetAll, loadFromObject,
       setS, setFUN, setSIMPLE, myEditCode, setMyEditCode } = local;
+
+  const simpleComplete = [...SIMPLE_TOP4_KEYS, ...SHARED_FUN_KEYS].every((key) => isFilled(SIMPLE?.[key]));
+  const advancedComplete =
+    Object.keys(GROUPS).every((k) => {
+      const g = S?.g?.[k] || {};
+      return isFilled(g.p1) && isFilled(g.p2) && isFilled(g.p3);
+    }) &&
+    (Array.isArray(S?.third) ? S.third.length === 8 : false) &&
+    R32.every((m) => isFilled(S?.r32?.[m.id])) &&
+    R16_PAIRS.every((_, i) => isFilled(S?.r16?.[`r16_${i}`])) &&
+    QF_PAIRS.every((_, i) => isFilled(S?.qf?.[`qf_${i}`])) &&
+    SF_PAIRS.every((_, i) => isFilled(S?.sf?.[`sf_${i}`])) &&
+    isFilled(S?.final?.fin) &&
+    isFilled(S?.bronze?.bronze_w) &&
+    FUN_QUESTIONS.every((q) => isFilled(FUN?.[q.id]));
+
+  const shouldWarnOnClose = !!mode && hasUnsavedChanges;
+
+  useEffect(() => {
+    if (!shouldWarnOnClose) return;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [shouldWarnOnClose]);
 
   useEffect(() => {
     setAuthName(myName || '');
@@ -55,6 +124,35 @@ export default function App() {
   useEffect(() => {
     setAuthCode(myEditCode || DEFAULT_EDIT_CODE);
   }, [myEditCode]);
+
+  const buildCurrentPrediction = useCallback(() => {
+    if (mode === 'simple') return SIMPLE;
+    return {
+      g: S.g,
+      third: S.third,
+      bracket: {
+        r32: S.r32,
+        r16: S.r16,
+        qf: S.qf,
+        sf: S.sf,
+        final: S.final,
+        bronze: S.bronze
+      },
+      fun: FUN
+    };
+  }, [mode, SIMPLE, S, FUN]);
+
+  const buildSnapshot = useCallback(() => {
+    if (!myName?.trim() || !mode) return '';
+    const code = (myEditCode || '123456').trim().toUpperCase();
+    return JSON.stringify({
+      name: myName.trim(),
+      mode,
+      code,
+      prediction: buildCurrentPrediction(),
+      isAdmin: server.isAdmin
+    });
+  }, [myName, mode, myEditCode, buildCurrentPrediction, server.isAdmin]);
 
   // Sync bracket → simple
   const syncBracketToSimple = useCallback((newS) => {
@@ -200,8 +298,46 @@ export default function App() {
     setMyName(entry.name || name.trim());
     setMyEditCode(editCode.trim().toUpperCase());
     setIsAuthenticated(true);
+    const loadedPrediction = entry.mode === 'simple'
+      ? entry.prediction
+      : {
+          g: entry.prediction?.g || {},
+          third: entry.prediction?.third || [],
+          bracket: entry.prediction?.bracket || {},
+          fun: entry.prediction?.fun || {}
+        };
+    autosaveSnapshotRef.current = JSON.stringify({
+      name: entry.name || name.trim(),
+      mode: entry.mode,
+      code: editCode.trim().toUpperCase(),
+      prediction: loadedPrediction,
+      isAdmin: false
+    });
+    setHasUnsavedChanges(false);
+    setSaveStatus('saved');
     return { ok: true, mode: entry.mode };
   }, [loadFromObject, server, setMyName, setMyEditCode]);
+
+  const doLogin = useCallback(async (name, code) => {
+    const res = await loadMyPrediction(name, code);
+    if (res.ok) {
+      setAuthStatus('✅ Logget ind og tidligere bud hentet');
+      setAuthWarn('');
+      setPendingLoginArgs(null);
+      return;
+    }
+
+    if (res.error?.includes('Ingen forudsigelse fundet')) {
+      setAuthStatus('❌ Ingen forudsigelse fundet for dette navn + kode. Brug "Opret ny bruger" hvis du er ny.');
+      setAuthWarn('');
+      setPendingLoginArgs(null);
+      return;
+    }
+
+    setAuthStatus('❌ ' + res.error);
+    setAuthWarn('');
+    setPendingLoginArgs(null);
+  }, [loadMyPrediction]);
 
   const handleInitialLogin = useCallback(async () => {
     const name = authName.trim();
@@ -211,78 +347,119 @@ export default function App() {
       return;
     }
 
-    const res = await loadMyPrediction(name, code);
-    if (res.ok) {
-      setAuthStatus('✅ Logget ind og tidligere bud hentet');
+    // Warn if name looks like the default edit code
+    if (normalizeName(name) === '123456') {
+      setAuthStatus('');
+      setAuthWarn('⚠️ "123456" ser ud som en kode, ikke et navn. Er du sikker på, at du har skrevet dit rigtige navn?');
+      setPendingLoginArgs({ name, code });
       return;
     }
 
-    if (res.error?.includes('Ingen forudsigelse fundet')) {
-      setMyName(name);
-      setMyEditCode(code);
-      resetAll();
-      setMode(null);
-      setShowModeIntro(false);
-      setIsAuthenticated(true);
-      setAuthStatus('✅ Ny bruger oprettet. Vælg mode og lav dit bud.');
+    // Warn if name is similar to an existing name
+    const existingNames = (server.serverData?.colleagues || []).map(c => c.name);
+    const similar = findSimilarName(name, existingNames);
+    if (similar) {
+      setAuthStatus('');
+      setAuthWarn(`⚠️ Der findes allerede en bruger ved navn "${similar}". Mente du det? Klik "Fortsæt alligevel" for at logge ind med "${name}", eller ret dit navn.`);
+      setPendingLoginArgs({ name, code });
       return;
     }
 
-    setAuthStatus('❌ ' + res.error);
-  }, [authName, authCode, loadMyPrediction, resetAll, setMode, setMyEditCode, setMyName]);
+    await doLogin(name, code);
+  }, [authName, authCode, server.serverData, doLogin]);
+
+  const handleForceLogin = useCallback(async () => {
+    if (!pendingLoginArgs) return;
+    setAuthWarn('');
+    await doLogin(pendingLoginArgs.name, pendingLoginArgs.code);
+  }, [pendingLoginArgs, doLogin]);
+
+  const handleCreateNewUser = useCallback(() => {
+    const name = authName.trim();
+    const code = (authCode || DEFAULT_EDIT_CODE).trim().toUpperCase();
+    if (!name) {
+      setAuthStatus('❌ Skriv dit navn');
+      return;
+    }
+
+    const existingNames = (server.serverData?.colleagues || []).map(c => c.name);
+    const exactExists = existingNames.some((n) => normalizeName(n) === normalizeName(name));
+    if (exactExists) {
+      setAuthStatus('❌ Brugeren findes allerede. Brug Log ind med korrekt kode.');
+      return;
+    }
+    const similar = findSimilarName(name, existingNames);
+    if (similar) {
+      setAuthStatus(`❌ Navnet ligner eksisterende bruger "${similar}". Brug et unikt navn.`);
+      return;
+    }
+
+    setMyName(name);
+    setMyEditCode(code);
+    resetAll();
+    setMode(null);
+    setShowModeIntro(false);
+    setIsAuthenticated(true);
+    setAuthWarn('');
+    setPendingLoginArgs(null);
+    setAuthStatus('✅ Ny bruger oprettet lokalt. Vælg mode og lav dit bud.');
+  }, [authName, authCode, resetAll, server.serverData, setMode, setMyEditCode, setMyName]);
+
+  const handleSwitchMode = useCallback(() => {
+    if (hasUnsavedChanges && !window.confirm('Du har ugemte ændringer. Vil du skifte mode alligevel? Dine ændringer gemmes ikke.')) return;
+    setMode(null);
+  }, [hasUnsavedChanges, setMode]);
 
   const handleSwitchUser = useCallback(() => {
     setIsAuthenticated(false);
     setShowModeIntro(false);
     setMode(null);
     setAuthStatus('');
+    setAuthWarn('');
+    setPendingLoginArgs(null);
     setAuthName('');
     setAuthCode(DEFAULT_EDIT_CODE);
+    setHasUnsavedChanges(false);
+    autosaveSnapshotRef.current = '';
+    setSaveStatus('idle');
+    clearTimeout(saveStatusTimerRef.current);
   }, [setMode]);
+
+  const handleManualSave = useCallback(async () => {
+    if (!myName?.trim() || !mode) return;
+    const code = (myEditCode || '123456').trim().toUpperCase();
+    const prediction = buildCurrentPrediction();
+    setSaveStatus('saving');
+    clearTimeout(saveStatusTimerRef.current);
+    const res = await server.autosavePrediction(
+      myName.trim(),
+      mode,
+      prediction,
+      code,
+      server.isAdmin ? server.adminPassword : ''
+    );
+    if (res.ok) {
+      const resolvedCode = res.editCode || code;
+      const snapshot = JSON.stringify({ name: myName.trim(), mode, code: resolvedCode, prediction, isAdmin: server.isAdmin });
+      autosaveSnapshotRef.current = snapshot;
+      setHasUnsavedChanges(false);
+      setSaveStatus('saved');
+      saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 4000);
+      if (res.editCode && res.editCode !== myEditCode) {
+        setMyEditCode(res.editCode);
+      }
+    } else {
+      setSaveStatus('error');
+      saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 5000);
+    }
+  }, [myName, mode, myEditCode, buildCurrentPrediction, server, setMyEditCode]);
 
   useEffect(() => {
     if (!isAuthenticated || server.isAdmin || !mode || !myName?.trim()) return;
-
-    const code = (myEditCode || '123456').trim().toUpperCase();
-    const prediction = mode === 'simple'
-      ? SIMPLE
-      : {
-          g: S.g,
-          third: S.third,
-          bracket: {
-            r32: S.r32,
-            r16: S.r16,
-            qf: S.qf,
-            sf: S.sf,
-            final: S.final,
-            bronze: S.bronze
-          },
-          fun: FUN
-        };
-
-    const snapshot = JSON.stringify({ name: myName.trim(), mode, code, prediction, isAdmin: server.isAdmin });
-    if (snapshot === autosaveSnapshotRef.current) return;
-
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = setTimeout(async () => {
-      const res = await server.autosavePrediction(
-        myName.trim(),
-        mode,
-        prediction,
-        code,
-        server.isAdmin ? server.adminPassword : ''
-      );
-      if (res.ok) {
-        autosaveSnapshotRef.current = snapshot;
-        if (res.editCode && res.editCode !== myEditCode) {
-          setMyEditCode(res.editCode);
-        }
-      }
-    }, 1200);
-
-    return () => {
-      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    };
+    const currentSnapshot = buildSnapshot();
+    const dirty = !!currentSnapshot && currentSnapshot !== autosaveSnapshotRef.current;
+    setHasUnsavedChanges(dirty);
+    if (dirty) setSaveStatus('idle');
   }, [
     isAuthenticated,
     mode,
@@ -291,18 +468,22 @@ export default function App() {
     SIMPLE,
     myName,
     myEditCode,
+    buildSnapshot,
     server.isAdmin,
-    server.adminPassword,
-    server.autosavePrediction,
-    setMyEditCode
   ]);
+
+  useEffect(() => {
+    if (isAuthenticated && mode && !server.isAdmin) return;
+    setHasUnsavedChanges(false);
+    setSaveStatus('idle');
+  }, [isAuthenticated, mode, server.isAdmin]);
 
   if (!isAuthenticated) {
     return (
       <div className="app-root login-gate-wrap">
         <div className="section-card login-gate-card">
           <h2>🔐 Log ind for at starte</h2>
-          <p className="info-txt">Indtast navn og kode. Hvis du allerede har givet et bud, er din kode 123456 (medmindre du selv har ændret den).</p>
+          <p className="info-txt">Indtast navn og kode for at hente dit eksisterende bud. Nye brugere skal vælge "Opret ny bruger".</p>
           <div className="submit-panel">
             <div className="submit-panel-grid single-column-submit">
               <div className="submit-panel-block">
@@ -313,6 +494,7 @@ export default function App() {
                   placeholder="Dit navn"
                   value={authName}
                   onChange={e => setAuthName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !server.loading && handleInitialLogin()}
                 />
                 <input
                   type="text"
@@ -320,15 +502,26 @@ export default function App() {
                   placeholder="Kode"
                   value={authCode}
                   onChange={e => setAuthCode(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === 'Enter' && !server.loading && handleInitialLogin()}
                 />
               </div>
             </div>
             <div className="submit-action-row">
               <button className="btn-primary" onClick={handleInitialLogin} disabled={server.loading}>Log ind</button>
+              <button className="btn-ghost" onClick={handleCreateNewUser} disabled={server.loading}>Opret ny bruger</button>
             </div>
             <div className="submit-meta-list">
-              <p className="info-txt">Findes dit bud ikke endnu, bliver du oprettet som ny bruger og kan lave et nyt bud.</p>
+              <p className="info-txt">Login henter kun eksisterende bud. Hvis du er ny, brug "Opret ny bruger".</p>
             </div>
+            {authWarn && (
+              <div className="status-msg warn">
+                <p>{authWarn}</p>
+                <div className="submit-action-row" style={{ marginTop: '0.5rem' }}>
+                  <button className="btn-danger btn-sm" onClick={handleForceLogin} disabled={server.loading}>Fortsæt alligevel</button>
+                  <button className="btn-ghost btn-sm" onClick={() => { setAuthWarn(''); setPendingLoginArgs(null); }}>Ret navn</button>
+                </div>
+              </div>
+            )}
             {authStatus && <p className={`status-msg${authStatus.startsWith('❌') ? ' error' : ''}`}>{authStatus}</p>}
           </div>
         </div>
@@ -356,14 +549,33 @@ export default function App() {
     <div className="app-root">
       <header className="app-header">
         <span className="app-logo">⚽</span>
-        <h1>VM 2026 – Tirsdagsklubben</h1>
+        <h1>VM 2026 – PrivatTribeDK</h1>
+        {myName && <div className="app-user-indicator">Logget ind som: {myName}</div>}
         {countdownStr && (
           <div className="app-countdown">
             <span className="app-countdown-label">⏳ VM starter om:</span>
             <span className="app-countdown-timer">{countdownStr}</span>
           </div>
         )}
-        <button className="btn-ghost btn-sm" onClick={() => setMode(null)}>
+        {isAuthenticated && mode && !server.isAdmin && (
+          <button
+            className={`btn-sm ${
+              saveStatus === 'saving' ? 'btn-ghost' :
+              saveStatus === 'saved' ? 'btn-ghost' :
+              saveStatus === 'error' ? 'btn-danger' :
+              hasUnsavedChanges ? 'btn-primary' : 'btn-ghost'
+            }`}
+            onClick={handleManualSave}
+            disabled={server.loading || saveStatus === 'saving' || (!hasUnsavedChanges && saveStatus !== 'error')}
+            title={hasUnsavedChanges ? 'Du har ugemte ændringer' : ''}
+          >
+            {saveStatus === 'saving' ? 'Gemmer…' :
+             saveStatus === 'saved' ? '✓ Gemt' :
+             saveStatus === 'error' ? '⚠ Fejl ved gem' :
+             hasUnsavedChanges ? '💾 Gem ●' : '💾 Gem'}
+          </button>
+        )}
+        <button className="btn-ghost btn-sm" onClick={handleSwitchMode}>
           Skift mode
         </button>
         <button className="btn-ghost btn-sm" onClick={handleSwitchUser}>
@@ -416,7 +628,6 @@ export default function App() {
           updateFun={updateFun}
           updateSimple={handleSimpleChange}
           serverData={server.serverData}
-          onSubmit={server.submitPrediction}
           adminUpdate={server.adminUpdateResults}
           adminVerify={server.adminVerifyPassword}
           adminLogout={server.adminLogout}
@@ -435,10 +646,6 @@ export default function App() {
           setFUN={setFUN}
           setSIMPLE={setSIMPLE}
           myName={myName}
-          setMyName={setMyName}
-          myEditCode={myEditCode}
-          setMyEditCode={setMyEditCode}
-          onLoadMine={loadMyPrediction}
         />
       )}
     </div>
