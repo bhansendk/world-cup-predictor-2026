@@ -549,7 +549,7 @@ export default function App() {
     <div className="app-root">
       <header className="app-header">
         <span className="app-logo">⚽</span>
-        <h1>VM 2026 – PrivatTribeDK</h1>
+        <h1>VM 2026 – Tirsdagsklubben</h1>
         {myName && <div className="app-user-indicator">Logget ind som: {myName}</div>}
         {countdownStr && (
           <div className="app-countdown">
